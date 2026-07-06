@@ -30,10 +30,11 @@ lib/
   supabase/                 Browser + server Supabase clients
 
 app/
-  login/                    Magic-link auth
+  login/                    Fixed email + PIN sign-in
+  settings/                 Change the login email/PIN
   dashboard/                New-filing form (name + FY + occupation) + list of your filings
   session/[id]/             Main triage → chat/upload → records → guidance → pre-fill flow
-  api/                      Route handlers: sessions, records, upload, guidance, prefill
+  api/                      Route handlers: auth, sessions, records, upload, guidance, prefill
 
 supabase/schema.sql          Full Postgres schema with row-level security
 ```
@@ -51,18 +52,16 @@ Fill in `.env.local`:
 |---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project → Settings → API |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Same page |
-| `SUPABASE_SERVICE_ROLE_KEY` | Same page (only needed if you later add server-only admin actions) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Same page — required, used server-only to create/update the login account |
 | `ANTHROPIC_API_KEY` | console.anthropic.com → API Keys |
 
 ## 2. Create the Supabase project
 
 1. Go to [supabase.com](https://supabase.com) → New project.
 2. Once created, open the SQL editor and paste the contents of `supabase/schema.sql`, then run it.
-3. In **Authentication → Providers**, ensure Email (magic link) is enabled — it is by default.
-4. In **Authentication → URL Configuration**, add your local and production URLs to the redirect
-   allow-list, e.g.:
-   - `http://localhost:3000/auth/callback`
-   - `https://<your-vercel-domain>/auth/callback`
+3. Seed the login account once by sending a POST request to `/api/auth/bootstrap` (e.g.
+   `curl -X POST http://localhost:3000/api/auth/bootstrap` once the app is running). This creates a
+   single Supabase auth user for `ipaliboboma@gmail.com` / PIN `5120` — see "Login" below.
 
 ## 3. Run locally
 
@@ -70,8 +69,20 @@ Fill in `.env.local`:
 npm run dev
 ```
 
-Visit `http://localhost:3000` — you'll be redirected to `/login`, sent a magic link, and land on
-`/dashboard` after clicking it.
+Visit `http://localhost:3000` — you'll be redirected to `/login`. Sign in with the email/PIN from
+the bootstrap step, and you'll land on `/dashboard`.
+
+## Login
+
+This app has exactly one user, so there's no sign-up flow — just a fixed email + PIN
+(`app/login/page.tsx`). Under the hood it's still a real Supabase email/password account (the PIN
+is padded to satisfy Supabase's password-length rule in `lib/auth-credentials.ts`), so Row Level
+Security via `auth.uid()` works exactly as it would with any other Supabase auth method.
+
+- **First-time setup**: call `POST /api/auth/bootstrap` once (see step 3 above) to create the
+  account with the default email/PIN. It's a no-op if the account already exists.
+- **Changing the email/PIN**: go to `/settings` while signed in — it asks for the current PIN plus
+  a new email and PIN, and updates the account via `PATCH /api/auth/credentials`.
 
 ## 4. Push to GitHub
 
@@ -90,9 +101,9 @@ git push -u origin main
 2. Framework preset: Next.js (auto-detected).
 3. Add the same four environment variables from `.env.local` under **Settings → Environment
    Variables** (for Production, Preview, and Development).
-4. Deploy. Once live, go back to Supabase **Authentication → URL Configuration** and add your real
-   Vercel domain's `/auth/callback` URL to the redirect allow-list — magic links won't work until
-   you do this.
+4. Deploy, then call `POST /api/auth/bootstrap` against the deployed URL once to seed the login
+   account (see "Login" above) — no Supabase redirect allow-list to configure since there's no
+   email link involved.
 
 ## How the "live guidance" piece works
 

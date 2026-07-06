@@ -24,11 +24,19 @@ export default async function DashboardPage() {
           <span className="code-tag">SIGNED IN</span>
           <h1 className="ledger-heading text-2xl font-semibold mt-2">{user.email}</h1>
         </div>
-        <form action="/api/sessions/signout" method="post">
-          <button className="text-xs font-mono uppercase tracking-wide text-ink/50 hover:text-ink">
-            Sign out
-          </button>
-        </form>
+        <div className="flex items-center gap-4">
+          <Link
+            href="/settings"
+            className="text-xs font-mono uppercase tracking-wide text-ink/50 hover:text-ink"
+          >
+            Change login
+          </Link>
+          <form action="/api/sessions/signout" method="post">
+            <button className="text-xs font-mono uppercase tracking-wide text-ink/50 hover:text-ink">
+              Sign out
+            </button>
+          </form>
+        </div>
       </header>
 
       <section className="grid gap-8 md:grid-cols-2">
