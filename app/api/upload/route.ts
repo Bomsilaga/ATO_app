@@ -30,7 +30,14 @@ async function insertClassifiedLines(
     session_id: sessionId,
     source,
     raw_input: l.description ?? filename,
-    extracted: { amount: l.amount, date: l.date, description: l.description, reasoning: l.reasoning },
+    extracted: {
+      amount: l.amount,
+      date: l.date,
+      description: l.description,
+      reasoning: l.reasoning,
+      quantity: l.quantity,
+      unit: l.unit
+    },
     category_code: l.category_code,
     record_type: l.record_type,
     status: l.category_code ? ("candidate" as const) : ("unknown" as const),

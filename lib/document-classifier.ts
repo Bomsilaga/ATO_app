@@ -47,6 +47,24 @@ Skip entirely — do not return a line for any of these:
 For crypto/trading reports, extract each distinct platform/asset gain-or-loss figure as its own line
 item rather than the running summary of them.
 
+Some documents record inputs to a standard ATO deduction method instead of a direct dollar cost —
+most commonly:
+- Work-related kilometres driven in the taxpayer's own car (not home-to-work commuting) — claimable
+  via the cents-per-kilometre method, capped at 5,000 km per car per year.
+- Hours worked from home on a genuine income-producing basis — claimable via the ATO's fixed-rate
+  home-office running-expenses method. Only treat hours as this if the document clearly indicates
+  the work was done FROM HOME — a general staff roster or payroll hours summary with no indication
+  of home-based work is NOT this, and should not have an amount invented for it.
+
+When you find kilometres or hours that clearly qualify as one of these, use the web_search tool to
+look up the CURRENT ATO rate for financial year ${financialYear} for that method, then compute
+amount = quantity × rate (respecting the 5,000 km cap for the car method). Return that line with the
+computed amount, category_code "D1" (car) or "D5" (home office), record_type "expense", the
+quantity, the unit ("km" or "hours"), and a reasoning that states the quantity, the rate you found
+and its source, and that it's a computed estimate the taxpayer should verify before lodging. If the
+kilometres or hours are ambiguous as to work-relatedness or home-basis, skip that line — do not
+invent a claim.
+
 For each genuine line item, pick the single best-fitting ATO category from this list, or null if
 genuinely nothing fits:
 ${CATEGORY_LIST}
@@ -59,7 +77,7 @@ Set confidence 0-1 reflecting how sure you are, and give a one-sentence reasonin
 (or for why it's null).
 
 Return ONLY JSON, no markdown fences, no preamble:
-{"lines": [{"amount": number, "date": string|null, "description": string, "category_code": string|null, "record_type": "income"|"expense"|null, "confidence": number, "reasoning": string}]}`;
+{"lines": [{"amount": number, "date": string|null, "description": string, "category_code": string|null, "record_type": "income"|"expense"|null, "confidence": number, "reasoning": string, "quantity": number|null, "unit": string|null}]}`;
 }
 
 function parseLines(responseText: string): ClassifiedLine[] {
@@ -86,6 +104,8 @@ function parseLines(responseText: string): ClassifiedLine[] {
           reasoning: l.reasoning ?? undefined,
           category_code: categoryCode,
           record_type: recordType,
+          quantity: typeof l.quantity === "number" ? l.quantity : undefined,
+          unit: l.unit ?? undefined,
           confidence: typeof l.confidence === "number" ? l.confidence : 0
         };
       });
@@ -109,7 +129,8 @@ export async function classifyDocumentText(
     const response = await client.messages.create({
       model: MODEL,
       max_tokens: 8000,
-      messages: [{ role: "user", content: prompt }]
+      messages: [{ role: "user", content: prompt }],
+      tools: [{ type: "web_search_20250305", name: "web_search" } as any]
     });
     const responseText = response.content
       .filter((b: any) => b.type === "text")
@@ -159,7 +180,8 @@ export async function classifyDocumentFile(
     const response = await client.messages.create({
       model: MODEL,
       max_tokens: 8000,
-      messages: [{ role: "user", content: [block, { type: "text", text: buildPrompt(financialYear) }] as any }]
+      messages: [{ role: "user", content: [block, { type: "text", text: buildPrompt(financialYear) }] as any }],
+      tools: [{ type: "web_search_20250305", name: "web_search" } as any]
     });
     const responseText = response.content
       .filter((b: any) => b.type === "text")

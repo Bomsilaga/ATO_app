@@ -19,6 +19,7 @@ export interface ExtractedFields {
   counterparty?: string;
   asset?: string; // for crypto/shares/property
   quantity?: number;
+  unit?: string; // unit for quantity, e.g. "km" or "hours" — set when amount was computed from a rate
   reasoning?: string; // one-sentence "why this category" from the classifier, for display
 }
 

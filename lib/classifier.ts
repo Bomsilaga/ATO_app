@@ -47,6 +47,15 @@ ${CATEGORY_LIST}
 
 Note from the taxpayer: "${rawText.replace(/"/g, "'")}"
 
+If the note states work-related kilometres driven in the taxpayer's own car (not commuting), or
+hours worked from home on a genuine income-producing basis (not just general work hours), use the
+web_search tool to find the CURRENT ATO rate for financial year ${financialYear} for the matching
+method — cents-per-kilometre (capped at 5,000 km per car per year) for kilometres, or the fixed-rate
+home-office running-expenses rate for hours — and set amount to quantity × rate. In that case set
+category_code to "D1" (car) or "D5" (home office), record_type "expense", and mention the quantity,
+unit, and rate you found in the reasoning. If it's ambiguous whether kilometres/hours are
+work-related or home-based, don't invent an amount — ask via clarification_question instead.
+
 Extract the amount (AUD number, no symbols), date (ISO yyyy-mm-dd — infer the year from financial
 year ${financialYear} if only a day/month is given), and a short description. Pick the single
 best-fitting category code, or null if genuinely nothing fits. Also decide record_type: "income" if
@@ -58,13 +67,14 @@ unclear whether it's income or an expense), set clarification_question to one sh
 for exactly what's missing, else null.
 
 Return ONLY JSON, no markdown fences, no preamble:
-{"category_code": string|null, "record_type": "income"|"expense"|null, "confidence": number, "amount": number|null, "date": string|null, "description": string, "reasoning": string, "clarification_question": string|null}`;
+{"category_code": string|null, "record_type": "income"|"expense"|null, "confidence": number, "amount": number|null, "date": string|null, "description": string, "reasoning": string, "clarification_question": string|null, "quantity": number|null, "unit": string|null}`;
 
   try {
     const response = await client.messages.create({
       model: MODEL,
-      max_tokens: 400,
-      messages: [{ role: "user", content: prompt }]
+      max_tokens: 1500,
+      messages: [{ role: "user", content: prompt }],
+      tools: [{ type: "web_search_20250305", name: "web_search" } as any]
     });
 
     const text = response.content
@@ -90,7 +100,9 @@ Return ONLY JSON, no markdown fences, no preamble:
         amount: parsed.amount ?? undefined,
         date: parsed.date ?? undefined,
         description: parsed.description || rawText.trim(),
-        reasoning: parsed.reasoning ?? undefined
+        reasoning: parsed.reasoning ?? undefined,
+        quantity: typeof parsed.quantity === "number" ? parsed.quantity : undefined,
+        unit: parsed.unit ?? undefined
       },
       clarification_question: parsed.clarification_question ?? null
     };

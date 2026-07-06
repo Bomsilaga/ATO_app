@@ -169,7 +169,8 @@ export default function RecordList({
                     <p className="text-xs font-mono uppercase tracking-wide text-muted mb-1">Extracted fields</p>
                     <p className="text-ink2 font-mono text-xs">
                       {r.extracted.asset && `asset: ${r.extracted.asset} `}
-                      {r.extracted.quantity !== undefined && `qty: ${r.extracted.quantity}`}
+                      {r.extracted.quantity !== undefined &&
+                        `qty: ${r.extracted.quantity}${r.extracted.unit ? ` ${r.extracted.unit}` : ""}`}
                     </p>
                   </div>
                 )}
