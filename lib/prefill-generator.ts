@@ -77,6 +77,24 @@ function buildPlainEnglishSummary(labels: PrefillLabel[]): string {
   return `Based on confirmed records this session:\n${lines.join("\n")}`;
 }
 
+// Raw totals feeding the deterministic tax estimate (lib/tax-estimator.ts) —
+// kept separate from the label breakdown above since these sum by
+// record_type (income vs expense), not by category.
+export function computeIncomeAndDeductionTotals(confirmedRecords: TaxRecord[]) {
+  let totalIncome = 0;
+  let totalDeductions = 0;
+  let totalTaxWithheld = 0;
+
+  for (const r of confirmedRecords) {
+    const amount = Math.abs(r.extracted.amount ?? 0);
+    if (r.record_type === "income") totalIncome += amount;
+    if (r.record_type === "expense") totalDeductions += amount;
+    totalTaxWithheld += r.extracted.tax_withheld ?? 0;
+  }
+
+  return { totalIncome: round2(totalIncome), totalDeductions: round2(totalDeductions), totalTaxWithheld: round2(totalTaxWithheld) };
+}
+
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }

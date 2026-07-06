@@ -36,7 +36,8 @@ async function insertClassifiedLines(
       description: l.description,
       reasoning: l.reasoning,
       quantity: l.quantity,
-      unit: l.unit
+      unit: l.unit,
+      tax_withheld: l.tax_withheld
     },
     category_code: l.category_code,
     record_type: l.record_type,

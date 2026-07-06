@@ -30,11 +30,13 @@ deduction, offset, or capital gain/loss amounts.
 
 If this is an ATO individual tax return form, pay particular attention to the income section — it
 lists a payer/employer name alongside a "tax withheld" figure and an "income" figure per payer, plus
-a combined total above the per-payer breakdown (extract the per-payer figures as separate line
-items, not the combined total, to avoid double-counting). Numbers in adjacent table columns are
-sometimes run together with no separator when a document is read as plain text (e.g. "6,73527,633"
-meaning $6,735 and $27,633) — read carefully and split them correctly using valid thousands-comma
-grouping, rather than skipping them as unparseable.
+a combined total above the per-payer breakdown. Extract ONE line item per payer for the income
+figure, and put that payer's tax-withheld figure on the SAME line's tax_withheld field — do NOT
+return the tax-withheld figure as its own separate line item, and do NOT extract the combined total
+row; both would double-count. Numbers in adjacent table columns are sometimes run together with no
+separator when a document is read as plain text (e.g. "6,73527,633" meaning $6,735 and $27,633) —
+read carefully and split them correctly using valid thousands-comma grouping, rather than skipping
+them as unparseable.
 
 Skip entirely — do not return a line for any of these:
 - personal details (name, address, date of birth, TFN, phone, email, bank BSB/account numbers)
@@ -77,7 +79,7 @@ Set confidence 0-1 reflecting how sure you are, and give a one-sentence reasonin
 (or for why it's null).
 
 Return ONLY JSON, no markdown fences, no preamble:
-{"lines": [{"amount": number, "date": string|null, "description": string, "category_code": string|null, "record_type": "income"|"expense"|null, "confidence": number, "reasoning": string, "quantity": number|null, "unit": string|null}]}`;
+{"lines": [{"amount": number, "date": string|null, "description": string, "category_code": string|null, "record_type": "income"|"expense"|null, "confidence": number, "reasoning": string, "quantity": number|null, "unit": string|null, "tax_withheld": number|null}]}`;
 }
 
 function parseLines(responseText: string): ClassifiedLine[] {
@@ -106,6 +108,7 @@ function parseLines(responseText: string): ClassifiedLine[] {
           record_type: recordType,
           quantity: typeof l.quantity === "number" ? l.quantity : undefined,
           unit: l.unit ?? undefined,
+          tax_withheld: typeof l.tax_withheld === "number" ? l.tax_withheld : undefined,
           confidence: typeof l.confidence === "number" ? l.confidence : 0
         };
       });

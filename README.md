@@ -114,6 +114,26 @@ nothing is cached globally or reused across financial years, because thresholds 
 every year and sometimes mid-year (see the README note in `lib/guidance-fetcher.ts` for why this
 matters).
 
+## Report page and tax estimate
+
+`app/session/[id]/report/page.tsx` generates the full label-mapped pre-fill plus a deterministic
+tax estimate (`lib/tax-estimator.ts`): total income, total deductions, taxable income, tax on that
+income, LITO offset, Medicare levy, and total tax withheld (captured per-payer from ITR uploads),
+netted against tax withheld to show an estimated refund or amount owing. The current year's tax
+brackets, Medicare levy settings, and LITO parameters are fetched live via web search
+(`fetchIncomeTaxRates` in `lib/guidance-fetcher.ts`) rather than hardcoded, same principle as the
+category guidance fetch — but the arithmetic itself always runs in plain TypeScript, never left to
+the model, consistent with how `lib/cgt-engine.ts` already handles FIFO cost-base matching.
+
+Amounts are editable inline on the report page before finalizing — saving recomputes the estimate.
+The report can be exported as PDF, XLSX, or DOCX (`lib/report-export.ts`, via
+`GET /api/prefill/export?sessionId=&format=`).
+
+Uploads or chat notes that record work-related kilometres driven or hours genuinely worked from
+home (not just any timesheet) get an actual deduction computed against the live cents-per-km or
+fixed-rate figure, instead of being discarded for having no direct dollar amount — see the
+kilometres/hours handling in `lib/document-classifier.ts` and `lib/classifier.ts`.
+
 ## Extending it
 
 - **Exchange APIs (read-only)**: add a new module under `lib/` following the pattern in

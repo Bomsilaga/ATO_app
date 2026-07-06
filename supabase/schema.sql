@@ -77,7 +77,8 @@ create table if not exists prefill_outputs (
   labels jsonb not null default '[]'::jsonb,
   plain_english_summary text,
   agent_review_flags text[] not null default '{}',
-  disclaimer text
+  disclaimer text,
+  tax_estimate jsonb
 );
 
 -- Row Level Security: every table scoped to the owning user via session_id.

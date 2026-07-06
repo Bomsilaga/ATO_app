@@ -9,7 +9,6 @@ import { getCategoryByCode } from "@/lib/taxonomy";
 import CategoryTriage from "@/components/CategoryTriage";
 import FileUpload from "@/components/FileUpload";
 import RecordList from "@/components/RecordList";
-import PrefillReport from "@/components/PrefillReport";
 import SessionSummary from "@/components/SessionSummary";
 
 interface ChatMessage {
@@ -26,7 +25,6 @@ export default function SessionPage() {
   const [textInput, setTextInput] = useState("");
   const [chatLog, setChatLog] = useState<ChatMessage[]>([]);
   const [sending, setSending] = useState(false);
-  const [prefill, setPrefill] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [guidanceLoading, setGuidanceLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -111,22 +109,6 @@ export default function SessionPage() {
       return;
     }
     loadSession();
-  }
-
-  async function generatePrefill() {
-    if (!session) return;
-    setError(null);
-    const res = await fetch("/api/prefill", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId: session.id })
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      setError(data.error);
-      return;
-    }
-    setPrefill(data);
   }
 
   if (loading) return <main className="p-12 text-sm text-ink2">Loading…</main>;
@@ -218,10 +200,11 @@ export default function SessionPage() {
               </section>
 
               <section className="card p-6 space-y-3">
-                <h2 className="ledger-heading text-lg font-semibold">Live guidance & pre-fill</h2>
+                <h2 className="ledger-heading text-lg font-semibold">Live guidance & report</h2>
                 <p className="text-sm text-ink2">
-                  Fetches current ATO thresholds and rulings for your active categories, then
-                  generates a label-mapped pre-fill from your confirmed records.
+                  Fetches current ATO thresholds and rulings for your active categories, then the
+                  full report — label-mapped pre-fill, tax estimate, and export — is generated on
+                  its own page.
                 </p>
                 <div className="flex flex-wrap gap-3">
                   <button
@@ -231,24 +214,15 @@ export default function SessionPage() {
                   >
                     {guidanceLoading ? "Fetching…" : "Fetch current ATO guidance"}
                   </button>
-                  <button
-                    onClick={generatePrefill}
+                  <Link
+                    href={`/session/${session.id}/report`}
                     className="px-4 py-2 text-xs font-mono uppercase tracking-wide border border-line text-ink2 rounded-md hover:border-ink hover:text-ink"
                   >
-                    Generate pre-fill
-                  </button>
+                    View / generate report →
+                  </Link>
                 </div>
                 {error && <p className="text-sm text-flag">{error}</p>}
               </section>
-
-              {prefill && (
-                <PrefillReport
-                  labels={prefill.labels}
-                  summary={prefill.plain_english_summary}
-                  agentFlags={prefill.agent_review_flags}
-                  disclaimer={prefill.disclaimer}
-                />
-              )}
             </>
           )}
         </div>

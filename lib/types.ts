@@ -21,6 +21,7 @@ export interface ExtractedFields {
   quantity?: number;
   unit?: string; // unit for quantity, e.g. "km" or "hours" — set when amount was computed from a rate
   reasoning?: string; // one-sentence "why this category" from the classifier, for display
+  tax_withheld?: number; // PAYG tax withheld associated with this income line (e.g. per-payer ITR figure)
 }
 
 export interface TaxRecord {
@@ -120,4 +121,45 @@ export interface PrefillOutput {
   plain_english_summary: string;
   agent_review_flags: string[];
   disclaimer: string;
+}
+
+export interface TaxBracket {
+  min: number;
+  max: number | null; // null = no upper bound (top bracket)
+  rate: number; // marginal rate, e.g. 0.32 for 32%
+}
+
+export interface LitoParams {
+  max_offset: number;
+  taper_start: number;
+  taper_rate: number;
+  taper2_start?: number;
+  taper2_rate?: number;
+}
+
+export interface IncomeTaxRates {
+  financial_year: FinancialYear;
+  fetched_at: string;
+  brackets: TaxBracket[];
+  medicare_levy_rate: number; // e.g. 0.02
+  medicare_levy_low_income_threshold: number; // below this, levy is nil (simplified — no shade-in band)
+  lito: LitoParams;
+  source_note: string;
+  citations: { title: string; url: string }[];
+}
+
+export interface TaxEstimate {
+  financial_year: FinancialYear;
+  total_income: number;
+  total_deductions: number;
+  taxable_income: number;
+  tax_on_taxable_income: number;
+  lito_offset: number;
+  medicare_levy: number;
+  total_tax_payable: number;
+  total_tax_withheld: number;
+  net_result: number; // positive = refund, negative = amount owing
+  is_refund: boolean;
+  notes: string;
+  citations: { title: string; url: string }[];
 }
