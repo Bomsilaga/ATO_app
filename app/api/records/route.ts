@@ -24,11 +24,17 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(data);
 }
 
-// Body: { sessionId, rawText, categoryCode? }
+// Body: { sessionId, rawText, categoryCode?, recordId? }
 // Free-text / chat input path. When the caller doesn't already know the
 // category, the note is classified server-side against the ATO taxonomy for
 // this session's financial year, so the client never embeds classification
 // logic and the chat can show the result immediately.
+//
+// recordId is set when rawText is a clarification-question follow-up rather
+// than a brand new note — the caller merges the accumulated conversation
+// text itself and passes back the record to update, so answering "23 may
+// 2026" re-classifies the FULL merged note (not that bare date alone) and
+// updates the same row instead of leaving an orphaned duplicate behind.
 export async function POST(request: NextRequest) {
   const supabase = createClient();
   const {
@@ -37,7 +43,7 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
   const body = await request.json();
-  const { sessionId, rawText, categoryCode } = body;
+  const { sessionId, rawText, categoryCode, recordId } = body;
 
   if (!sessionId || !rawText) {
     return NextResponse.json({ error: "sessionId and rawText required" }, { status: 400 });
@@ -98,20 +104,20 @@ export async function POST(request: NextRequest) {
       }
     : await classifyRecord(rawText, session.financial_year, session.occupation);
 
-  const { data, error } = await supabase
-    .from("tax_records")
-    .insert({
-      session_id: sessionId,
-      source: "text",
-      raw_input: rawText,
-      extracted: classification.extracted,
-      category_code: classification.category_code,
-      record_type: classification.record_type,
-      status: classification.category_code ? "candidate" : "unknown",
-      confidence: classification.confidence
-    })
-    .select()
-    .single();
+  const row = {
+    session_id: sessionId,
+    source: "text" as const,
+    raw_input: rawText,
+    extracted: classification.extracted,
+    category_code: classification.category_code,
+    record_type: classification.record_type,
+    status: classification.category_code ? ("candidate" as const) : ("unknown" as const),
+    confidence: classification.confidence
+  };
+
+  const { data, error } = recordId
+    ? await supabase.from("tax_records").update(row).eq("id", recordId).select().single()
+    : await supabase.from("tax_records").insert(row).select().single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ...data, clarification_question: classification.clarification_question });

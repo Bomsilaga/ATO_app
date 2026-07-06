@@ -17,6 +17,12 @@ interface ChatMessage {
   reply: string;
 }
 
+interface PendingClarification {
+  recordId: string;
+  accumulatedText: string;
+  question: string;
+}
+
 type Tab = "chat" | "records" | "report";
 
 const TABS: { key: Tab; label: string }[] = [
@@ -36,6 +42,7 @@ export default function SessionPage() {
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>("chat");
+  const [pending, setPending] = useState<PendingClarification | null>(null);
 
   const loadSession = useCallback(async () => {
     const res = await fetch(`/api/sessions?id=${id}`);
@@ -75,10 +82,21 @@ export default function SessionPage() {
     setTextInput("");
     setSending(true);
 
+    // If a clarification question is pending, this reply only makes sense
+    // combined with the original note's full context — classifying "23 may
+    // 2026" alone tells you nothing. Merge onto the accumulated text and
+    // update the same record instead of spawning an unrelated new one.
+    const isFollowUp = pending !== null;
+    const rawText = isFollowUp ? `${pending!.accumulatedText}. ${text}` : text;
+
     const res = await fetch("/api/records", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId: session.id, rawText: text })
+      body: JSON.stringify({
+        sessionId: session.id,
+        rawText,
+        recordId: isFollowUp ? pending!.recordId : undefined
+      })
     });
     const data = await res.json();
     setSending(false);
@@ -86,6 +104,7 @@ export default function SessionPage() {
     let reply: string;
     if (!res.ok) {
       reply = `Couldn't save that — ${data.error}`;
+      setPending(null);
     } else if (data.multi) {
       const lines = (data.records as TaxRecord[]).map((r) => {
         const category = r.category_code ? getCategoryByCode(r.category_code) : undefined;
@@ -93,15 +112,28 @@ export default function SessionPage() {
         return `• ${amount} — ${category ? `${r.category_code} (${category.label})` : "uncategorised"}`;
       });
       reply = `Found ${data.count} record${data.count === 1 ? "" : "s"} in that:\n${lines.join("\n")}`;
+      setPending(null);
+    } else if (data.clarification_question && data.category_code) {
+      // Already filed successfully, but the classifier still wants an
+      // optional detail (e.g. a missing date) — say so instead of showing
+      // only the question, which reads as if nothing was understood.
+      const category = getCategoryByCode(data.category_code);
+      reply = `Filed under ${data.category_code} — ${category?.label ?? "unrecognised category"}${
+        data.extracted?.amount !== undefined ? ` ($${data.extracted.amount.toLocaleString()})` : ""
+      }. ${data.clarification_question}`;
+      setPending({ recordId: data.id, accumulatedText: rawText, question: data.clarification_question });
     } else if (data.clarification_question) {
       reply = data.clarification_question;
+      setPending({ recordId: data.id, accumulatedText: rawText, question: data.clarification_question });
     } else if (data.category_code) {
       const category = getCategoryByCode(data.category_code);
       reply = `Filed under ${data.category_code} — ${category?.label ?? "unrecognised category"} (${Math.round(
         (data.confidence ?? 0) * 100
       )}% confidence) for FY ${session.financial_year}.`;
+      setPending(null);
     } else {
       reply = "Couldn't confidently categorise that — pick a category from the list below.";
+      setPending(null);
     }
 
     setChatLog((log) => [...log, { text, reply }]);
@@ -181,6 +213,20 @@ export default function SessionPage() {
                     </div>
                   )}
 
+                  {pending && (
+                    <div className="flex items-center justify-between gap-3 text-xs bg-warn/10 border border-warn/30 rounded-md px-3 py-2">
+                      <span className="text-ink2">
+                        Still working out one note — your next reply answers "{pending.question}"
+                      </span>
+                      <button
+                        onClick={() => setPending(null)}
+                        className="font-mono uppercase text-ink2 hover:text-ink shrink-0"
+                      >
+                        Start new note ✕
+                      </button>
+                    </div>
+                  )}
+
                   <textarea
                     value={textInput}
                     onChange={(e) => setTextInput(e.target.value)}
@@ -190,7 +236,11 @@ export default function SessionPage() {
                         submitText();
                       }
                     }}
-                    placeholder="e.g. laptop $1500 june — or paste a whole email, receipt, or statement to file everything in it at once"
+                    placeholder={
+                      pending
+                        ? "Answer the question above…"
+                        : "e.g. laptop $1500 june — or paste a whole email, receipt, or statement to file everything in it at once"
+                    }
                     rows={2}
                     className="w-full border border-line rounded-md p-3 text-sm bg-paper outline-none focus:border-ledger"
                   />
