@@ -23,6 +23,7 @@ create table if not exists tax_records (
   raw_input text not null,
   extracted jsonb not null default '{}'::jsonb,
   category_code text,
+  record_type text check (record_type in ('income', 'expense')),
   status text not null default 'unknown'
     check (status in ('unknown', 'candidate', 'confirmed', 'excluded')),
   evidence_ref text,

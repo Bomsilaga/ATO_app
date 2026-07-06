@@ -26,11 +26,12 @@ export default function SessionSummary({ session, records }: { session: TaxSessi
 
   for (const r of records) {
     statusCounts[r.status] += 1;
-    if (r.status !== "confirmed" || !r.category_code) continue;
-    const category = getCategoryByCode(r.category_code);
+    if (r.status !== "confirmed") continue;
+    const category = r.category_code ? getCategoryByCode(r.category_code) : undefined;
+    const recordType = r.record_type ?? (category?.question_type === "income" ? "income" : category?.question_type === "deduction" ? "expense" : null);
     const amount = Math.abs(r.extracted.amount ?? 0);
-    if (category?.question_type === "income") income += amount;
-    if (category?.question_type === "deduction") deductions += amount;
+    if (recordType === "income") income += amount;
+    if (recordType === "expense") deductions += amount;
   }
 
   return (

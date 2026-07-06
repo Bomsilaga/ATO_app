@@ -32,6 +32,7 @@ async function insertClassifiedLines(
     raw_input: l.description ?? filename,
     extracted: { amount: l.amount, date: l.date, description: l.description, reasoning: l.reasoning },
     category_code: l.category_code,
+    record_type: l.record_type,
     status: l.category_code ? ("candidate" as const) : ("unknown" as const),
     evidence_ref: filename,
     confidence: l.confidence

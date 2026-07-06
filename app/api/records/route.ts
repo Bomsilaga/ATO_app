@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
   const classification = categoryCode
     ? {
         category_code: categoryCode as string,
+        record_type: null as "income" | "expense" | null,
         confidence: 0.6,
         extracted: extractFromText(rawText),
         clarification_question: null as string | null
@@ -69,6 +70,7 @@ export async function POST(request: NextRequest) {
       raw_input: rawText,
       extracted: classification.extracted,
       category_code: classification.category_code,
+      record_type: classification.record_type,
       status: classification.category_code ? "candidate" : "unknown",
       confidence: classification.confidence
     })
@@ -89,11 +91,12 @@ export async function PATCH(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
   const body = await request.json();
-  const { recordId, status, categoryCode } = body;
+  const { recordId, status, categoryCode, recordType } = body;
 
   const updatePayload: Record<string, unknown> = {};
   if (status) updatePayload.status = status;
-  if (categoryCode) updatePayload.category_code = categoryCode;
+  if (categoryCode !== undefined) updatePayload.category_code = categoryCode || null;
+  if (recordType !== undefined) updatePayload.record_type = recordType || null;
 
   const { data, error } = await supabase
     .from("tax_records")

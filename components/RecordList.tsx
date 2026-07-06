@@ -62,7 +62,16 @@ export default function RecordList({
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <select
                 value={r.category_code ?? ""}
-                onChange={(e) => patch(r.id, { categoryCode: e.target.value })}
+                onChange={(e) => {
+                  const nextCode = e.target.value;
+                  const payload: Record<string, unknown> = { categoryCode: nextCode };
+                  if (!r.record_type) {
+                    const questionType = nextCode ? getCategoryByCode(nextCode)?.question_type : undefined;
+                    if (questionType === "income") payload.recordType = "income";
+                    if (questionType === "deduction") payload.recordType = "expense";
+                  }
+                  patch(r.id, payload);
+                }}
                 className="text-xs font-mono border border-line rounded-md px-2 py-1 bg-surface text-ink"
               >
                 <option value="">Uncategorised</option>
@@ -72,6 +81,27 @@ export default function RecordList({
                   </option>
                 ))}
               </select>
+
+              <div className="flex rounded-md border border-line overflow-hidden text-xs font-mono uppercase tracking-wide">
+                <button
+                  disabled={busy === r.id}
+                  onClick={() => patch(r.id, { recordType: "income" })}
+                  className={`px-2 py-1 ${
+                    r.record_type === "income" ? "bg-good text-paper" : "text-ink2 hover:text-ink"
+                  }`}
+                >
+                  Income
+                </button>
+                <button
+                  disabled={busy === r.id}
+                  onClick={() => patch(r.id, { recordType: "expense" })}
+                  className={`px-2 py-1 border-l border-line ${
+                    r.record_type === "expense" ? "bg-flag text-paper" : "text-ink2 hover:text-ink"
+                  }`}
+                >
+                  Expense
+                </button>
+              </div>
 
               <button
                 onClick={() => setExpanded(isOpen ? null : r.id)}

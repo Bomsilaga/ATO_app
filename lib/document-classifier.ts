@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { ATO_CATEGORIES } from "./taxonomy";
-import { ExtractedFields, FinancialYear } from "./types";
+import { ATO_CATEGORIES, getCategoryByCode } from "./taxonomy";
+import { ExtractedFields, FinancialYear, RecordType } from "./types";
 
 // Reads a whole document — a PDF tax return, a messy crypto report, a plain
 // text export, a photographed receipt — in one pass and returns only the
@@ -16,6 +16,7 @@ const CATEGORY_LIST = ATO_CATEGORIES.filter((c) => c.question_type !== "structur
 
 export interface ClassifiedLine extends ExtractedFields {
   category_code: string | null;
+  record_type: RecordType | null;
   confidence: number;
 }
 
@@ -50,11 +51,15 @@ For each genuine line item, pick the single best-fitting ATO category from this 
 genuinely nothing fits:
 ${CATEGORY_LIST}
 
+Also decide record_type for each line: "income" if money was received (wages, sale proceeds,
+interest, gains), "expense" if money was spent or is a deductible cost, or null if genuinely
+unclear.
+
 Set confidence 0-1 reflecting how sure you are, and give a one-sentence reasoning for the category
 (or for why it's null).
 
 Return ONLY JSON, no markdown fences, no preamble:
-{"lines": [{"amount": number, "date": string|null, "description": string, "category_code": string|null, "confidence": number, "reasoning": string}]}`;
+{"lines": [{"amount": number, "date": string|null, "description": string, "category_code": string|null, "record_type": "income"|"expense"|null, "confidence": number, "reasoning": string}]}`;
 }
 
 function parseLines(responseText: string): ClassifiedLine[] {
@@ -64,14 +69,26 @@ function parseLines(responseText: string): ClassifiedLine[] {
 
     return lines
       .filter((l: any) => typeof l.amount === "number" && l.amount !== 0)
-      .map((l: any) => ({
-        amount: l.amount,
-        date: l.date ?? undefined,
-        description: l.description || "Extracted from document",
-        reasoning: l.reasoning ?? undefined,
-        category_code: l.category_code ?? null,
-        confidence: typeof l.confidence === "number" ? l.confidence : 0
-      }));
+      .map((l: any) => {
+        const categoryCode = l.category_code ?? null;
+        let recordType: RecordType | null =
+          l.record_type === "income" || l.record_type === "expense" ? l.record_type : null;
+        if (!recordType && categoryCode) {
+          const questionType = getCategoryByCode(categoryCode)?.question_type;
+          if (questionType === "income") recordType = "income";
+          if (questionType === "deduction") recordType = "expense";
+        }
+
+        return {
+          amount: l.amount,
+          date: l.date ?? undefined,
+          description: l.description || "Extracted from document",
+          reasoning: l.reasoning ?? undefined,
+          category_code: categoryCode,
+          record_type: recordType,
+          confidence: typeof l.confidence === "number" ? l.confidence : 0
+        };
+      });
   } catch {
     return [];
   }
@@ -98,8 +115,11 @@ export async function classifyDocumentText(
       .filter((b: any) => b.type === "text")
       .map((b: any) => b.text)
       .join("\n");
-    return parseLines(responseText);
-  } catch {
+    const lines = parseLines(responseText);
+    if (lines.length === 0) console.error("classifyDocumentText: 0 lines parsed from:", responseText.slice(0, 2000));
+    return lines;
+  } catch (err) {
+    console.error("classifyDocumentText failed:", err instanceof Error ? err.message : err);
     return [];
   }
 }
@@ -137,8 +157,11 @@ export async function classifyDocumentFile(
       .filter((b: any) => b.type === "text")
       .map((b: any) => b.text)
       .join("\n");
-    return parseLines(responseText);
-  } catch {
+    const lines = parseLines(responseText);
+    if (lines.length === 0) console.error("classifyDocumentFile: 0 lines parsed from:", responseText.slice(0, 2000));
+    return lines;
+  } catch (err) {
+    console.error("classifyDocumentFile failed:", err instanceof Error ? err.message : err);
     return [];
   }
 }

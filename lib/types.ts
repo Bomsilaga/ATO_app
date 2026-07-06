@@ -10,6 +10,8 @@ export type RecordSource = "text" | "file" | "csv" | "api" | "manual";
 
 export type RecordStatus = "unknown" | "candidate" | "confirmed" | "excluded";
 
+export type RecordType = "income" | "expense";
+
 export interface ExtractedFields {
   amount?: number;
   date?: string; // ISO date
@@ -27,6 +29,7 @@ export interface TaxRecord {
   raw_input: string;
   extracted: ExtractedFields;
   category_code: string | null; // maps to CategoryNode.code
+  record_type: RecordType | null; // income vs expense — auto-set by the classifier, user-editable
   status: RecordStatus;
   evidence_ref: string | null; // uploaded file path, if any
   confidence: number; // 0-1, classifier confidence

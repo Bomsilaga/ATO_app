@@ -46,7 +46,8 @@ Return ONLY JSON, no markdown fences, no preamble:
 
     if (!parsed.amount_column) return null; // need at least an amount to be useful
     return parsed;
-  } catch {
+  } catch (err) {
+    console.error("inferColumnMapping failed:", err instanceof Error ? err.message : err);
     return null;
   }
 }
