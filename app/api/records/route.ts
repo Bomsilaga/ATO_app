@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { extractFromText } from "@/lib/text-extractor";
+import { extractFromText, looksLikeMultiItemPaste } from "@/lib/text-extractor";
 import { classifyRecord } from "@/lib/classifier";
+import { classifyDocumentText } from "@/lib/document-classifier";
 
 export async function GET(request: NextRequest) {
   const supabase = createClient();
@@ -52,6 +53,41 @@ export async function POST(request: NextRequest) {
   if (sessionError || !session)
     return NextResponse.json({ error: "session not found" }, { status: 404 });
 
+  // A pasted email, receipt, or statement dump usually contains several
+  // genuine line items rather than one scanty note — extract all of them in
+  // one pass instead of forcing the single-note classifier to guess at just
+  // one amount from a much longer blob.
+  if (!categoryCode && looksLikeMultiItemPaste(rawText)) {
+    const lines = await classifyDocumentText(rawText, session.financial_year);
+    if (lines.length > 1) {
+      const insertRows = lines.map((l) => ({
+        session_id: sessionId,
+        source: "text" as const,
+        raw_input: l.description ?? rawText.slice(0, 200),
+        extracted: {
+          amount: l.amount,
+          date: l.date,
+          description: l.description,
+          reasoning: l.reasoning,
+          quantity: l.quantity,
+          unit: l.unit,
+          tax_withheld: l.tax_withheld
+        },
+        category_code: l.category_code,
+        record_type: l.record_type,
+        status: l.category_code ? ("candidate" as const) : ("unknown" as const),
+        confidence: l.confidence
+      }));
+
+      const { data, error } = await supabase.from("tax_records").insert(insertRows).select();
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+      return NextResponse.json({ multi: true, count: data.length, records: data });
+    }
+    // 0 or 1 line found — fall through to the single-note classifier below,
+    // which still gives a clarification question if something's missing.
+  }
+
   const classification = categoryCode
     ? {
         category_code: categoryCode as string,
@@ -81,8 +117,10 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ ...data, clarification_question: classification.clarification_question });
 }
 
-// Body: { recordId, status, categoryCode? }
-// Used to confirm a candidate record, exclude it, or reclassify it.
+// Body: { recordId, status?, categoryCode?, recordType?, extracted? }
+// Used to confirm a candidate record, exclude it, reclassify it, or edit its
+// auto-filled amount/date/description (extracted is merged, not replaced, so
+// callers only need to send the fields they changed).
 export async function PATCH(request: NextRequest) {
   const supabase = createClient();
   const {
@@ -91,12 +129,21 @@ export async function PATCH(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
   const body = await request.json();
-  const { recordId, status, categoryCode, recordType } = body;
+  const { recordId, status, categoryCode, recordType, extracted } = body;
 
   const updatePayload: Record<string, unknown> = {};
   if (status) updatePayload.status = status;
   if (categoryCode !== undefined) updatePayload.category_code = categoryCode || null;
   if (recordType !== undefined) updatePayload.record_type = recordType || null;
+
+  if (extracted && typeof extracted === "object") {
+    const { data: existing } = await supabase
+      .from("tax_records")
+      .select("extracted")
+      .eq("id", recordId)
+      .single();
+    updatePayload.extracted = { ...(existing?.extracted ?? {}), ...extracted };
+  }
 
   const { data, error } = await supabase
     .from("tax_records")

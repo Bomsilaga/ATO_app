@@ -10,11 +10,20 @@ import CategoryTriage from "@/components/CategoryTriage";
 import FileUpload from "@/components/FileUpload";
 import RecordList from "@/components/RecordList";
 import SessionSummary from "@/components/SessionSummary";
+import ReportPanel from "@/components/ReportPanel";
 
 interface ChatMessage {
   text: string;
   reply: string;
 }
+
+type Tab = "chat" | "records" | "report";
+
+const TABS: { key: Tab; label: string }[] = [
+  { key: "chat", label: "Chat & Upload" },
+  { key: "records", label: "Records" },
+  { key: "report", label: "Report" }
+];
 
 export default function SessionPage() {
   const params = useParams();
@@ -26,8 +35,7 @@ export default function SessionPage() {
   const [chatLog, setChatLog] = useState<ChatMessage[]>([]);
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [guidanceLoading, setGuidanceLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<Tab>("chat");
 
   const loadSession = useCallback(async () => {
     const res = await fetch(`/api/sessions?id=${id}`);
@@ -78,6 +86,13 @@ export default function SessionPage() {
     let reply: string;
     if (!res.ok) {
       reply = `Couldn't save that — ${data.error}`;
+    } else if (data.multi) {
+      const lines = (data.records as TaxRecord[]).map((r) => {
+        const category = r.category_code ? getCategoryByCode(r.category_code) : undefined;
+        const amount = r.extracted.amount !== undefined ? `$${r.extracted.amount.toLocaleString()}` : "no amount";
+        return `• ${amount} — ${category ? `${r.category_code} (${category.label})` : "uncategorised"}`;
+      });
+      reply = `Found ${data.count} record${data.count === 1 ? "" : "s"} in that:\n${lines.join("\n")}`;
     } else if (data.clarification_question) {
       reply = data.clarification_question;
     } else if (data.category_code) {
@@ -91,24 +106,6 @@ export default function SessionPage() {
 
     setChatLog((log) => [...log, { text, reply }]);
     loadRecords();
-  }
-
-  async function fetchGuidance() {
-    if (!session) return;
-    setGuidanceLoading(true);
-    setError(null);
-    const res = await fetch("/api/guidance", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId: session.id })
-    });
-    const data = await res.json();
-    setGuidanceLoading(false);
-    if (!res.ok) {
-      setError(data.error);
-      return;
-    }
-    loadSession();
   }
 
   if (loading) return <main className="p-12 text-sm text-ink2">Loading…</main>;
@@ -141,88 +138,87 @@ export default function SessionPage() {
 
           {triageComplete && (
             <>
-              <section className="card p-6 space-y-4">
-                <div>
-                  <h2 className="ledger-heading text-lg font-semibold">Chat</h2>
-                  <p className="text-sm text-ink2 mt-1">
-                    Type scanty details — an amount, a rough date, what it was for — and it's
-                    categorised against FY {session.financial_year} immediately.
-                  </p>
-                </div>
+              <div className="flex gap-1 border-b border-line">
+                {TABS.map((tab) => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveTab(tab.key)}
+                    className={`px-4 py-2 text-xs font-mono uppercase tracking-wide border-b-2 -mb-px transition-colors ${
+                      activeTab === tab.key
+                        ? "border-ledger text-ledger"
+                        : "border-transparent text-ink2 hover:text-ink"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
 
-                {chatLog.length > 0 && (
-                  <div className="space-y-3 max-h-72 overflow-y-auto hairline pb-4">
-                    {chatLog.map((m, i) => (
-                      <div key={i} className="text-sm">
-                        <p className="text-ink">
-                          <span className="font-mono text-xs text-muted mr-2">YOU</span>
-                          {m.text}
-                        </p>
-                        <p className="text-ledger mt-1">
-                          <span className="font-mono text-xs text-ledger/70 mr-2">TRIAGE</span>
-                          {m.reply}
-                        </p>
-                      </div>
-                    ))}
+              {activeTab === "chat" && (
+                <section className="card p-6 space-y-4">
+                  <div>
+                    <h2 className="ledger-heading text-lg font-semibold">Chat</h2>
+                    <p className="text-sm text-ink2 mt-1">
+                      Type scanty details — an amount, a rough date, what it was for — and it's
+                      categorised against FY {session.financial_year} immediately.
+                    </p>
                   </div>
-                )}
 
-                <textarea
-                  value={textInput}
-                  onChange={(e) => setTextInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      submitText();
-                    }
-                  }}
-                  placeholder="e.g. laptop $1500 june"
-                  rows={2}
-                  className="w-full border border-line rounded-md p-3 text-sm bg-paper outline-none focus:border-ledger"
-                />
-                <div className="flex items-center justify-between gap-4">
-                  <button
-                    onClick={submitText}
-                    disabled={sending}
-                    className="px-4 py-1.5 text-xs font-mono uppercase tracking-wide border border-ledger text-ledger rounded-md hover:bg-ledger hover:text-paper disabled:opacity-50"
-                  >
-                    {sending ? "Categorising…" : "Send"}
-                  </button>
-                </div>
-                <div className="pt-2 hairline">
-                  <FileUpload sessionId={session.id} onUploaded={loadRecords} />
-                </div>
-              </section>
+                  {chatLog.length > 0 && (
+                    <div className="space-y-3 max-h-72 overflow-y-auto hairline pb-4">
+                      {chatLog.map((m, i) => (
+                        <div key={i} className="text-sm">
+                          <p className="text-ink">
+                            <span className="font-mono text-xs text-muted mr-2">YOU</span>
+                            {m.text.length > 300 ? `${m.text.slice(0, 300)}…` : m.text}
+                          </p>
+                          <p className="text-ledger mt-1 whitespace-pre-line">
+                            <span className="font-mono text-xs text-ledger/70 mr-2">TRIAGE</span>
+                            {m.reply}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
-              <section className="card p-6">
-                <h2 className="ledger-heading text-lg font-semibold mb-4">Records</h2>
-                <RecordList records={records} onChanged={loadRecords} />
-              </section>
+                  <textarea
+                    value={textInput}
+                    onChange={(e) => setTextInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        submitText();
+                      }
+                    }}
+                    placeholder="e.g. laptop $1500 june — or paste a whole email, receipt, or statement to file everything in it at once"
+                    rows={2}
+                    className="w-full border border-line rounded-md p-3 text-sm bg-paper outline-none focus:border-ledger"
+                  />
+                  <div className="flex items-center justify-between gap-4">
+                    <button
+                      onClick={submitText}
+                      disabled={sending}
+                      className="px-4 py-1.5 text-xs font-mono uppercase tracking-wide border border-ledger text-ledger rounded-md hover:bg-ledger hover:text-paper disabled:opacity-50"
+                    >
+                      {sending ? "Categorising…" : "Send"}
+                    </button>
+                  </div>
+                  <div className="pt-2 hairline">
+                    <FileUpload sessionId={session.id} onUploaded={loadRecords} />
+                  </div>
+                </section>
+              )}
 
-              <section className="card p-6 space-y-3">
-                <h2 className="ledger-heading text-lg font-semibold">Live guidance & report</h2>
-                <p className="text-sm text-ink2">
-                  Fetches current ATO thresholds and rulings for your active categories, then the
-                  full report — label-mapped pre-fill, tax estimate, and export — is generated on
-                  its own page.
-                </p>
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    onClick={fetchGuidance}
-                    disabled={guidanceLoading}
-                    className="px-4 py-2 text-xs font-mono uppercase tracking-wide border border-ledger text-ledger rounded-md hover:bg-ledger hover:text-paper disabled:opacity-50"
-                  >
-                    {guidanceLoading ? "Fetching…" : "Fetch current ATO guidance"}
-                  </button>
-                  <Link
-                    href={`/session/${session.id}/report`}
-                    className="px-4 py-2 text-xs font-mono uppercase tracking-wide border border-line text-ink2 rounded-md hover:border-ink hover:text-ink"
-                  >
-                    View / generate report →
-                  </Link>
-                </div>
-                {error && <p className="text-sm text-flag">{error}</p>}
-              </section>
+              {activeTab === "records" && (
+                <section className="card p-6">
+                  <h2 className="ledger-heading text-lg font-semibold mb-4">Records</h2>
+                  <RecordList records={records} onChanged={loadRecords} />
+                </section>
+              )}
+
+              {activeTab === "report" && (
+                <ReportPanel sessionId={session.id} financialYear={session.financial_year} />
+              )}
             </>
           )}
         </div>

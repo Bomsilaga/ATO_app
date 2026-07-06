@@ -155,6 +155,23 @@ subject to the same Confirm/Exclude review as uploaded records — and echoed ba
 immediately so you see what it was filed under. If `ANTHROPIC_API_KEY` isn't set, it falls back to
 the plain regex extractor with no category assigned, so you can still categorise manually.
 
+Pasting something longer than a scanty note — a whole email, a forwarded receipt, a pasted bank
+statement — is detected automatically (`looksLikeMultiItemPaste` in `lib/text-extractor.ts`, based
+on line count/length/number of dollar amounts) and routed through the same whole-document extractor
+uploads use (`classifyDocumentText`), so every genuine line item in the paste gets filed and
+categorised in one go instead of the single-note classifier only picking out one amount.
+
+## Session page layout
+
+`app/session/[id]/page.tsx` is tabbed once triage is complete: **Chat & Upload**, **Records**, and
+**Report**. Every auto-filled field is editable in place rather than read-only — category and
+income/expense on each record (`components/RecordList.tsx`), and now amount/date/description too
+via an inline edit toggle; label amounts on the report (`components/ReportPanel.tsx`) before saving.
+The report tab and the standalone `/session/[id]/report` page share the same `ReportPanel`
+component, so generating, editing, and exporting behave identically either way — including
+auto-fetching guidance first if it's missing, rather than erroring and requiring a separate manual
+step.
+
 ## Uploads
 
 `app/api/upload/route.ts` accepts multiple files at once (uploaded sequentially) and handles, by

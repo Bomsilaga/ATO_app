@@ -23,6 +23,12 @@ export default function RecordList({
 }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<{ description: string; amount: string; date: string }>({
+    description: "",
+    amount: "",
+    date: ""
+  });
 
   async function patch(recordId: string, payload: Record<string, unknown>) {
     setBusy(recordId);
@@ -35,6 +41,27 @@ export default function RecordList({
     onChanged();
   }
 
+  function startEdit(r: TaxRecord) {
+    setEditingId(r.id);
+    setDraft({
+      description: r.extracted.description ?? "",
+      amount: r.extracted.amount !== undefined ? String(r.extracted.amount) : "",
+      date: r.extracted.date ?? ""
+    });
+  }
+
+  async function saveEdit(recordId: string) {
+    const amount = parseFloat(draft.amount);
+    await patch(recordId, {
+      extracted: {
+        description: draft.description,
+        amount: isNaN(amount) ? undefined : amount,
+        date: draft.date || undefined
+      }
+    });
+    setEditingId(null);
+  }
+
   if (records.length === 0) {
     return <p className="text-sm text-ink2">No records yet — chat, add manually, or upload a file above.</p>;
   }
@@ -45,16 +72,66 @@ export default function RecordList({
         const category = r.category_code ? getCategoryByCode(r.category_code) : undefined;
         const isOpen = expanded === r.id;
 
+        const isEditing = editingId === r.id;
+
         return (
           <li key={r.id} className="card p-4">
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1 min-w-0">
-                <p className="text-sm text-ink truncate">{r.extracted.description || r.raw_input}</p>
-                <p className="text-xs text-ink2 mt-1 font-mono">
-                  {r.extracted.amount !== undefined ? `$${r.extracted.amount.toLocaleString()}` : "no amount"} ·{" "}
-                  {r.extracted.date ?? "no date"}
-                  {category ? ` · ${category.code}` : ""}
-                </p>
+                {isEditing ? (
+                  <div className="space-y-2">
+                    <input
+                      value={draft.description}
+                      onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
+                      placeholder="Description"
+                      className="w-full text-sm border border-line rounded-md px-2 py-1 bg-paper outline-none focus:border-ledger"
+                    />
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={draft.amount}
+                        onChange={(e) => setDraft((d) => ({ ...d, amount: e.target.value }))}
+                        placeholder="Amount"
+                        className="w-28 text-xs font-mono border border-line rounded-md px-2 py-1 bg-paper outline-none focus:border-ledger"
+                      />
+                      <input
+                        type="date"
+                        value={draft.date}
+                        onChange={(e) => setDraft((d) => ({ ...d, date: e.target.value }))}
+                        className="text-xs font-mono border border-line rounded-md px-2 py-1 bg-paper outline-none focus:border-ledger"
+                      />
+                      <button
+                        onClick={() => saveEdit(r.id)}
+                        disabled={busy === r.id}
+                        className="px-3 py-1 text-xs font-mono uppercase border border-ledger text-ledger rounded-md hover:bg-ledger hover:text-paper"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={() => setEditingId(null)}
+                        className="px-3 py-1 text-xs font-mono uppercase border border-line text-ink2 rounded-md hover:text-ink"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-sm text-ink truncate">{r.extracted.description || r.raw_input}</p>
+                    <p className="text-xs text-ink2 mt-1 font-mono">
+                      {r.extracted.amount !== undefined ? `$${r.extracted.amount.toLocaleString()}` : "no amount"} ·{" "}
+                      {r.extracted.date ?? "no date"}
+                      {category ? ` · ${category.code}` : ""}
+                      <button
+                        onClick={() => startEdit(r)}
+                        className="ml-2 text-ink2 hover:text-ledger underline underline-offset-2"
+                      >
+                        edit
+                      </button>
+                    </p>
+                  </>
+                )}
               </div>
               <StatusBadge status={r.status} />
             </div>

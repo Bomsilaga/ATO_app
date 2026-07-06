@@ -65,3 +65,17 @@ export function needsFollowUp(fields: ExtractedFields): string[] {
   if (fields.date === undefined) missing.push("date");
   return missing;
 }
+
+const ALL_AMOUNTS_RE = /\$\s?[0-9][0-9,]*(?:\.[0-9]{1,2})?/g;
+
+// A pasted email, receipt, or statement dump reads very differently from a
+// scanty one-line chat note ("laptop $1500 june") — multiple line breaks or
+// multiple dollar amounts mean there's more than one genuine record buried
+// in it, so it needs whole-document extraction instead of the single-note
+// classifier (which only ever pulls one amount/date/description).
+export function looksLikeMultiItemPaste(rawInput: string): boolean {
+  const text = rawInput.trim();
+  const lineCount = text.split("\n").filter((l) => l.trim().length > 0).length;
+  const amountCount = (text.match(ALL_AMOUNTS_RE) ?? []).length;
+  return lineCount > 3 || amountCount > 1 || text.length > 400;
+}
