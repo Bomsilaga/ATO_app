@@ -108,7 +108,7 @@ export async function classifyDocumentText(
   try {
     const response = await client.messages.create({
       model: MODEL,
-      max_tokens: 4000,
+      max_tokens: 8000,
       messages: [{ role: "user", content: prompt }]
     });
     const responseText = response.content
@@ -116,7 +116,15 @@ export async function classifyDocumentText(
       .map((b: any) => b.text)
       .join("\n");
     const lines = parseLines(responseText);
-    if (lines.length === 0) console.error("classifyDocumentText: 0 lines parsed from:", responseText.slice(0, 2000));
+    if (lines.length === 0) {
+      console.error(
+        "classifyDocumentText: 0 lines. stop_reason:", response.stop_reason,
+        "usage:", JSON.stringify(response.usage),
+        "block types:", response.content.map((b: any) => b.type).join(","),
+        "input length:", text.length,
+        "response:", responseText.slice(0, 2000)
+      );
+    }
     return lines;
   } catch (err) {
     console.error("classifyDocumentText failed:", err instanceof Error ? err.message : err);
@@ -150,7 +158,7 @@ export async function classifyDocumentFile(
   try {
     const response = await client.messages.create({
       model: MODEL,
-      max_tokens: 4000,
+      max_tokens: 8000,
       messages: [{ role: "user", content: [block, { type: "text", text: buildPrompt(financialYear) }] as any }]
     });
     const responseText = response.content
@@ -158,7 +166,15 @@ export async function classifyDocumentFile(
       .map((b: any) => b.text)
       .join("\n");
     const lines = parseLines(responseText);
-    if (lines.length === 0) console.error("classifyDocumentFile: 0 lines parsed from:", responseText.slice(0, 2000));
+    if (lines.length === 0) {
+      console.error(
+        "classifyDocumentFile: 0 lines. stop_reason:", response.stop_reason,
+        "usage:", JSON.stringify(response.usage),
+        "block types:", response.content.map((b: any) => b.type).join(","),
+        "buffer bytes:", buffer.length,
+        "response:", responseText.slice(0, 2000)
+      );
+    }
     return lines;
   } catch (err) {
     console.error("classifyDocumentFile failed:", err instanceof Error ? err.message : err);

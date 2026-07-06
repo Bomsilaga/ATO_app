@@ -117,6 +117,13 @@ async function handleCsvLikeText(
   // thing as a document instead of column-by-column.
   const classified = await classifyDocumentText(csvText, financialYear);
   if (classified.length === 0) {
+    console.error(
+      "handleCsvLikeText: falling through to 422. mapping:", JSON.stringify(mapping),
+      "mappedRows:", mappedRows.length,
+      "nonZeroCount:", nonZeroCount,
+      "csvText length:", csvText.length,
+      "csvText sample:", csvText.slice(0, 1500)
+    );
     return NextResponse.json(
       {
         error:
