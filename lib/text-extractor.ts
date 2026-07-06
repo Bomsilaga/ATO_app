@@ -9,7 +9,19 @@ const AMOUNT_RE = /\$\s?([0-9][0-9,]*(?:\.[0-9]{1,2})?)/;
 const DATE_RE =
   /\b(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s?\d{0,4})\b/i;
 
-export function extractFromText(raw: string): ExtractedFields {
+const NUL_BYTE_RE = new RegExp(String.fromCharCode(0), "g");
+
+// Postgres text/jsonb columns reject the NUL byte outright. PDF text
+// extraction commonly leaves stray NUL characters where a font's ligature
+// glyphs (fi/fl) have no ToUnicode mapping — this strips those before
+// anything reaches the database, rather than letting a raw Postgres error
+// ("unsupported Unicode escape sequence") surface to the user.
+export function sanitizeText(raw: string): string {
+  return raw.replace(NUL_BYTE_RE, "");
+}
+
+export function extractFromText(rawInput: string): ExtractedFields {
+  const raw = sanitizeText(rawInput);
   const fields: ExtractedFields = { description: raw.trim() };
 
   const amountMatch = raw.match(AMOUNT_RE);

@@ -3,7 +3,7 @@ import * as XLSX from "xlsx";
 import { createClient } from "@/lib/supabase/server";
 import { applyColumnMapping, normalizeCsv } from "@/lib/csv-normalizer";
 import { inferColumnMapping } from "@/lib/spreadsheet-mapper";
-import { extractFromText } from "@/lib/text-extractor";
+import { extractFromText, sanitizeText } from "@/lib/text-extractor";
 import { extractLinesFromDocument } from "@/lib/document-extractor";
 import { ExtractedFields } from "@/lib/types";
 import { SupabaseClient } from "@supabase/supabase-js";
@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
       const insertRows = lines.slice(0, 200).map((line) => ({
         session_id: sessionId,
         source: "file" as const,
-        raw_input: line,
+        raw_input: sanitizeText(line),
         extracted: extractFromText(line),
         category_code: null,
         status: "unknown" as const,
@@ -200,7 +200,7 @@ export async function POST(request: NextRequest) {
     const insertRows = lines.slice(0, 200).map((line) => ({
       session_id: sessionId,
       source: "file" as const,
-      raw_input: line,
+      raw_input: sanitizeText(line),
       extracted: extractFromText(line),
       category_code: null,
       status: "unknown" as const,
