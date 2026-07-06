@@ -57,13 +57,13 @@ const FORMAT_SIGNATURES: {
   }
 ];
 
-function safeNumber(v: string | undefined): number {
+export function safeNumber(v: string | undefined): number {
   if (!v) return 0;
   const n = parseFloat(v.replace(/,/g, ""));
   return isNaN(n) ? 0 : n;
 }
 
-function safeDate(v: string | undefined): string | undefined {
+export function safeDate(v: string | undefined): string | undefined {
   if (!v) return undefined;
   const d = new Date(v);
   return isNaN(d.getTime()) ? undefined : d.toISOString().slice(0, 10);
@@ -84,6 +84,8 @@ export function normalizeCsv(csvText: string): {
   format: string;
   rows: NormalizedTxn[];
   unrecognized: boolean;
+  headers: string[];
+  rawRows: Record<string, string>[];
 } {
   const parsed = Papa.parse<Record<string, string>>(csvText, {
     header: true,
@@ -94,7 +96,7 @@ export function normalizeCsv(csvText: string): {
   const signature = detectFormat(headers);
 
   if (!signature) {
-    return { format: "unknown", rows: [], unrecognized: true };
+    return { format: "unknown", rows: [], unrecognized: true, headers, rawRows: parsed.data };
   }
 
   const rows: NormalizedTxn[] = parsed.data.map((row) => ({
@@ -103,5 +105,30 @@ export function normalizeCsv(csvText: string): {
     detected_format: signature.name
   }));
 
-  return { format: signature.name, rows, unrecognized: false };
+  return { format: signature.name, rows, unrecognized: false, headers, rawRows: parsed.data };
+}
+
+// Column-name → field mapping, used when no hardcoded FORMAT_SIGNATURE matches
+// (see lib/spreadsheet-mapper.ts, which infers this mapping via Claude).
+export interface ColumnMapping {
+  date_column: string | null;
+  description_column: string | null;
+  amount_column: string | null;
+  asset_column: string | null;
+  quantity_column: string | null;
+}
+
+export function applyColumnMapping(
+  rows: Record<string, string>[],
+  mapping: ColumnMapping
+): NormalizedTxn[] {
+  return rows.map((row) => ({
+    date: mapping.date_column ? safeDate(row[mapping.date_column]) : undefined,
+    description: mapping.description_column ? row[mapping.description_column] : undefined,
+    amount: mapping.amount_column ? safeNumber(row[mapping.amount_column]) : undefined,
+    asset: mapping.asset_column ? row[mapping.asset_column] : undefined,
+    quantity: mapping.quantity_column ? safeNumber(row[mapping.quantity_column]) : undefined,
+    raw_row: row,
+    detected_format: "ai_mapped"
+  }));
 }

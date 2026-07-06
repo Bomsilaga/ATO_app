@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { createClient } from "@/lib/supabase/server";
-import { normalizeCsv } from "@/lib/csv-normalizer";
+import { applyColumnMapping, normalizeCsv } from "@/lib/csv-normalizer";
+import { inferColumnMapping } from "@/lib/spreadsheet-mapper";
 import { extractFromText } from "@/lib/text-extractor";
 import { extractLinesFromDocument } from "@/lib/document-extractor";
 import { ExtractedFields } from "@/lib/types";
+import { SupabaseClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 
@@ -15,6 +17,59 @@ const IMAGE_MEDIA_TYPES: Record<string, string> = {
   webp: "image/webp",
   gif: "image/gif"
 };
+
+// Shared by the CSV and Excel branches, since Excel is converted to CSV text
+// before hitting the same normalizer. Falls back to an AI-inferred column
+// mapping when no hardcoded FORMAT_SIGNATURE matches, instead of failing
+// outright on spreadsheets that aren't a raw exchange/bank export.
+async function handleCsvLikeText(
+  supabase: SupabaseClient,
+  csvText: string,
+  sessionId: string,
+  filename: string
+) {
+  const { format, rows, unrecognized, headers, rawRows } = normalizeCsv(csvText);
+
+  let finalRows = rows;
+  let finalFormat = format;
+
+  if (unrecognized) {
+    const mapping = await inferColumnMapping(headers, rawRows);
+    if (!mapping) {
+      return NextResponse.json(
+        {
+          error:
+            "Unrecognised spreadsheet columns. Supported: Binance, CoinSpot, Independent Reserve, generic bank export layouts."
+        },
+        { status: 422 }
+      );
+    }
+    finalRows = applyColumnMapping(rawRows, mapping);
+    finalFormat = "ai_mapped";
+  }
+
+  const insertRows = finalRows.map((r) => ({
+    session_id: sessionId,
+    source: "csv" as const,
+    raw_input: JSON.stringify(r.raw_row),
+    extracted: {
+      amount: r.amount,
+      date: r.date,
+      description: r.description,
+      asset: r.asset,
+      quantity: r.quantity
+    },
+    category_code: r.asset ? "ASSET-CRYPTO" : null,
+    status: "candidate" as const,
+    evidence_ref: filename,
+    confidence: finalFormat === "ai_mapped" ? 0.5 : 0.7
+  }));
+
+  const { data, error } = await supabase.from("tax_records").insert(insertRows).select();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  return NextResponse.json({ format: finalFormat, count: data.length, records: data });
+}
 
 export async function POST(request: NextRequest) {
   const supabase = createClient();
@@ -53,42 +108,10 @@ export async function POST(request: NextRequest) {
 
   // --- CSV: exchange/bank exports go through the normalizer ---
   if (ext === "csv") {
-    const { format, rows, unrecognized } = normalizeCsv(buffer.toString("utf-8"));
-
-    if (unrecognized) {
-      return NextResponse.json(
-        {
-          error:
-            "Unrecognised CSV format. Supported: Binance, CoinSpot, Independent Reserve, generic bank export."
-        },
-        { status: 422 }
-      );
-    }
-
-    const insertRows = rows.map((r) => ({
-      session_id: sessionId,
-      source: "csv" as const,
-      raw_input: JSON.stringify(r.raw_row),
-      extracted: {
-        amount: r.amount,
-        date: r.date,
-        description: r.description,
-        asset: r.asset,
-        quantity: r.quantity
-      },
-      category_code: r.asset ? "ASSET-CRYPTO" : null,
-      status: "candidate" as const,
-      evidence_ref: file.name,
-      confidence: 0.7
-    }));
-
-    const { data, error } = await supabase.from("tax_records").insert(insertRows).select();
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-    return NextResponse.json({ format, count: data.length, records: data });
+    return handleCsvLikeText(supabase, buffer.toString("utf-8"), sessionId, file.name);
   }
 
-  // --- Excel: convert the first sheet to CSV, then reuse the same normalizer ---
+  // --- Excel: convert the first sheet to CSV, then reuse the same path ---
   if (ext === "xlsx" || ext === "xls") {
     let csvText: string;
     try {
@@ -102,38 +125,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { format, rows, unrecognized } = normalizeCsv(csvText);
-    if (unrecognized) {
-      return NextResponse.json(
-        {
-          error:
-            "Unrecognised spreadsheet columns. Supported: Binance, CoinSpot, Independent Reserve, generic bank export layouts."
-        },
-        { status: 422 }
-      );
-    }
-
-    const insertRows = rows.map((r) => ({
-      session_id: sessionId,
-      source: "csv" as const,
-      raw_input: JSON.stringify(r.raw_row),
-      extracted: {
-        amount: r.amount,
-        date: r.date,
-        description: r.description,
-        asset: r.asset,
-        quantity: r.quantity
-      },
-      category_code: r.asset ? "ASSET-CRYPTO" : null,
-      status: "candidate" as const,
-      evidence_ref: file.name,
-      confidence: 0.7
-    }));
-
-    const { data, error } = await supabase.from("tax_records").insert(insertRows).select();
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-    return NextResponse.json({ format, count: data.length, records: data });
+    return handleCsvLikeText(supabase, csvText, sessionId, file.name);
   }
 
   // --- PDF: try plain text extraction first; fall back to Claude document
