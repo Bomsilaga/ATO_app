@@ -66,6 +66,14 @@ export default function RecordList({
     setEditingId(null);
   }
 
+  async function deleteRecord(r: TaxRecord) {
+    if (!confirm(`Delete "${r.extracted.description || r.raw_input}"? This can't be undone.`)) return;
+    setBusy(r.id);
+    await fetch(`/api/records?recordId=${r.id}`, { method: "DELETE" });
+    setBusy(null);
+    onChanged();
+  }
+
   if (records.length === 0) {
     return <p className="text-sm text-ink2">No records yet — chat, add manually, or upload a file above.</p>;
   }
@@ -205,24 +213,33 @@ export default function RecordList({
                 {isOpen ? "Hide details ▲" : "How was this determined? ▼"}
               </button>
 
-              {r.status !== "confirmed" && (
-                <div className="flex gap-2 ml-auto">
-                  <button
-                    disabled={busy === r.id || !r.category_code}
-                    onClick={() => patch(r.id, { status: "confirmed" })}
-                    className="px-3 py-1 text-xs font-mono uppercase border border-ledger text-ledger rounded-md hover:bg-ledger hover:text-paper disabled:opacity-40"
-                  >
-                    Confirm
-                  </button>
-                  <button
-                    disabled={busy === r.id}
-                    onClick={() => patch(r.id, { status: "excluded" })}
-                    className="px-3 py-1 text-xs font-mono uppercase border border-line text-ink2 rounded-md hover:border-flag hover:text-flag"
-                  >
-                    Exclude
-                  </button>
-                </div>
-              )}
+              <div className="flex gap-2 ml-auto">
+                {r.status !== "confirmed" && (
+                  <>
+                    <button
+                      disabled={busy === r.id || !r.category_code}
+                      onClick={() => patch(r.id, { status: "confirmed" })}
+                      className="px-3 py-1 text-xs font-mono uppercase border border-ledger text-ledger rounded-md hover:bg-ledger hover:text-paper disabled:opacity-40"
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      disabled={busy === r.id}
+                      onClick={() => patch(r.id, { status: "excluded" })}
+                      className="px-3 py-1 text-xs font-mono uppercase border border-line text-ink2 rounded-md hover:border-flag hover:text-flag"
+                    >
+                      Exclude
+                    </button>
+                  </>
+                )}
+                <button
+                  disabled={busy === r.id}
+                  onClick={() => deleteRecord(r)}
+                  className="px-3 py-1 text-xs font-mono uppercase border border-line text-ink2 rounded-md hover:border-flag hover:text-flag disabled:opacity-40"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
 
             {isOpen && (

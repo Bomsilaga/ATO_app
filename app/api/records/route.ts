@@ -161,3 +161,22 @@ export async function PATCH(request: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data);
 }
+
+// Query: ?recordId= — permanently removes a record (unlike "excluded" status,
+// which keeps it around but out of totals). RLS already scopes this to the
+// caller's own records via the session ownership policy.
+export async function DELETE(request: NextRequest) {
+  const supabase = createClient();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+
+  const recordId = request.nextUrl.searchParams.get("recordId");
+  if (!recordId) return NextResponse.json({ error: "recordId required" }, { status: 400 });
+
+  const { error } = await supabase.from("tax_records").delete().eq("id", recordId);
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ deleted: true });
+}
