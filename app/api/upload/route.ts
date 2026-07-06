@@ -4,9 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { applyColumnMapping, normalizeCsv } from "@/lib/csv-normalizer";
 import { inferColumnMapping } from "@/lib/spreadsheet-mapper";
 import { extractFromText, sanitizeText } from "@/lib/text-extractor";
-import { extractLinesFromDocument } from "@/lib/document-extractor";
-import { classifyDocumentText, ClassifiedLine } from "@/lib/document-classifier";
-import { ExtractedFields, FinancialYear } from "@/lib/types";
+import { classifyDocumentText, classifyDocumentFile, ClassifiedLine } from "@/lib/document-classifier";
+import { FinancialYear } from "@/lib/types";
 import { SupabaseClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
@@ -158,22 +157,6 @@ export async function POST(request: NextRequest) {
   const ext = filename.split(".").pop() ?? "";
   const buffer = Buffer.from(await file.arrayBuffer());
 
-  async function insertExtractedLines(lines: ExtractedFields[], confidence: number, format: string) {
-    const insertRows = lines.map((f) => ({
-      session_id: sessionId,
-      source: "file" as const,
-      raw_input: f.description ?? file!.name,
-      extracted: f,
-      category_code: null,
-      status: "unknown" as const,
-      evidence_ref: file!.name,
-      confidence
-    }));
-    const { data, error } = await supabase.from("tax_records").insert(insertRows).select();
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ format, count: data.length, records: data });
-  }
-
   // --- CSV: exchange/bank exports go through the normalizer ---
   if (ext === "csv") {
     return handleCsvLikeText(supabase, buffer.toString("utf-8"), sessionId, file.name, session.financial_year);
@@ -196,82 +179,75 @@ export async function POST(request: NextRequest) {
     return handleCsvLikeText(supabase, csvText, sessionId, file.name, session.financial_year);
   }
 
-  // --- PDF: try plain text extraction first; classify the whole document
-  // rather than dumping every line as its own record. Fall back to Claude
-  // document understanding when there's no extractable text at all (scanned,
-  // signed, or otherwise image-only PDFs). ---
+  // --- PDF: classify the raw bytes directly so Claude reads the actual
+  // table/form layout (payer name next to tax-withheld next to income, in
+  // separate visual columns) instead of pdf-parse's flattened plain text,
+  // which merges adjacent numbers together with no separator and scrambles
+  // label/value pairing. Falls back to a plain per-line text dump only when
+  // no ANTHROPIC_API_KEY is configured at all. ---
   if (ext === "pdf") {
-    let text = "";
-    try {
-      const pdfParse = (await import("pdf-parse")).default;
-      const parsed = await pdfParse(buffer);
-      text = sanitizeText(parsed.text);
-    } catch {
-      text = "";
-    }
-
-    if (text.trim().length > 0) {
-      if (!process.env.ANTHROPIC_API_KEY) {
-        // No AI available — fall back to a plain per-line dump rather than
-        // losing the document's content entirely.
-        const lines = text
-          .split("\n")
-          .map((l) => l.trim())
-          .filter((l) => l.length > 5);
-        const insertRows = lines.slice(0, 200).map((line) => ({
-          session_id: sessionId,
-          source: "file" as const,
-          raw_input: line,
-          extracted: extractFromText(line),
-          category_code: null,
-          status: "unknown" as const,
-          evidence_ref: file.name,
-          confidence: 0.3
-        }));
-        const { data, error } = await supabase.from("tax_records").insert(insertRows).select();
-        if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-        return NextResponse.json({ format: "pdf_text", count: data.length, records: data });
+    if (!process.env.ANTHROPIC_API_KEY) {
+      let text = "";
+      try {
+        const pdfParse = (await import("pdf-parse")).default;
+        const parsed = await pdfParse(buffer);
+        text = sanitizeText(parsed.text);
+      } catch {
+        text = "";
       }
 
-      const classified = await classifyDocumentText(text, session.financial_year);
-      if (classified.length === 0) {
+      const lines = text
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => l.length > 5);
+
+      if (lines.length === 0) {
         return NextResponse.json(
-          {
-            error:
-              "Couldn't identify any financial line items in this PDF (only personal details, declarations, or boilerplate were found). Add specific amounts via chat instead."
-          },
+          { error: "Couldn't extract any text from this PDF — it may be scanned or image-only." },
           { status: 422 }
         );
       }
-      return insertClassifiedLines(supabase, classified, sessionId, file.name, "file", "pdf_classified");
+
+      const insertRows = lines.slice(0, 200).map((line) => ({
+        session_id: sessionId,
+        source: "file" as const,
+        raw_input: line,
+        extracted: extractFromText(line),
+        category_code: null,
+        status: "unknown" as const,
+        evidence_ref: file.name,
+        confidence: 0.3
+      }));
+      const { data, error } = await supabase.from("tax_records").insert(insertRows).select();
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ format: "pdf_text", count: data.length, records: data });
     }
 
-    const extracted = await extractLinesFromDocument(buffer, "application/pdf");
-    if (extracted.length === 0) {
+    const classified = await classifyDocumentFile(buffer, "application/pdf", session.financial_year);
+    if (classified.length === 0) {
       return NextResponse.json(
         {
           error:
-            "Couldn't extract any text or line items from this PDF — it may be scanned, signed, or image-only. Try adding the details via chat instead."
+            "Couldn't identify any financial line items in this PDF (only personal details, declarations, or boilerplate were found). Add specific amounts via chat instead."
         },
         { status: 422 }
       );
     }
-
-    return await insertExtractedLines(extracted, 0.5, "pdf_vision");
+    return insertClassifiedLines(supabase, classified, sessionId, file.name, "file", "pdf_classified");
   }
 
   // --- Images: receipts, screenshots — via Claude vision ---
   const imageMediaType = IMAGE_MEDIA_TYPES[ext];
   if (imageMediaType) {
-    const extracted = await extractLinesFromDocument(buffer, imageMediaType);
-    if (extracted.length === 0) {
+    const classified = await classifyDocumentFile(buffer, imageMediaType, session.financial_year);
+    if (classified.length === 0) {
       return NextResponse.json(
-        { error: "Couldn't find any line items in this image — make sure amounts/dates are legible." },
+        { error: "Couldn't find any financial line items in this image — make sure amounts/dates are legible." },
         { status: 422 }
       );
     }
 
-    return await insertExtractedLines(extracted, 0.5, "image_vision");
+    return insertClassifiedLines(supabase, classified, sessionId, file.name, "file", "image_classified");
   }
 
   // --- Plain text ---
