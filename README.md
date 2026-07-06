@@ -135,9 +135,27 @@ subject to the same Confirm/Exclude review as uploaded records — and echoed ba
 immediately so you see what it was filed under. If `ANTHROPIC_API_KEY` isn't set, it falls back to
 the plain regex extractor with no category assigned, so you can still categorise manually.
 
+## Uploads
+
+`app/api/upload/route.ts` handles, by extension:
+
+- **CSV / XLSX / XLS**: exchange and bank exports go through `lib/csv-normalizer.ts` (Excel files
+  are converted to CSV first via `sheet_to_csv`, then normalized the same way).
+- **PDF**: tries plain text extraction (`pdf-parse`) first; if that fails or finds no text (signed,
+  scanned, or otherwise image-only PDFs), falls back to sending the file to Claude as a document
+  via `lib/document-extractor.ts`.
+- **JPG / PNG / WEBP / GIF**: sent straight to Claude vision via the same `document-extractor.ts` —
+  covers photographed receipts.
+- **TXT / MD**: each non-trivial line runs through the free-text extractor.
+
+Anything else is rejected with a clear "unsupported file type" error rather than being silently
+mis-parsed as text.
+
 ## Known limitations (v0.1)
 
-- OCR for photographed receipts isn't wired up yet — PDF text extraction works, but image-only
-  receipts need a vision step added to `app/api/upload/route.ts`.
 - Exchange API pulls (CoinSpot/Binance/etc. read-only keys) are designed for but not yet
-  implemented — CSV upload is the current path.
+  implemented — CSV/XLSX upload is the current path.
+- The `xlsx` npm package (SheetJS) has two known unpatched advisories (prototype pollution, ReDoS)
+  — SheetJS only ships fixed builds via their own CDN, not npm. Given this app has a single
+  account holder uploading their own files (not arbitrary third-party input), the risk is limited,
+  but if that changes, switch to a CDN-sourced build per SheetJS's own install instructions.
