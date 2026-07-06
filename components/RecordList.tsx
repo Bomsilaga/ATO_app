@@ -24,10 +24,11 @@ export default function RecordList({
   const [busy, setBusy] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState<{ description: string; amount: string; date: string }>({
+  const [draft, setDraft] = useState<{ description: string; amount: string; date: string; taxWithheld: string }>({
     description: "",
     amount: "",
-    date: ""
+    date: "",
+    taxWithheld: ""
   });
 
   async function patch(recordId: string, payload: Record<string, unknown>) {
@@ -46,17 +47,20 @@ export default function RecordList({
     setDraft({
       description: r.extracted.description ?? "",
       amount: r.extracted.amount !== undefined ? String(r.extracted.amount) : "",
-      date: r.extracted.date ?? ""
+      date: r.extracted.date ?? "",
+      taxWithheld: r.extracted.tax_withheld !== undefined ? String(r.extracted.tax_withheld) : ""
     });
   }
 
   async function saveEdit(recordId: string) {
     const amount = parseFloat(draft.amount);
+    const taxWithheld = parseFloat(draft.taxWithheld);
     await patch(recordId, {
       extracted: {
         description: draft.description,
         amount: isNaN(amount) ? undefined : amount,
-        date: draft.date || undefined
+        date: draft.date || undefined,
+        tax_withheld: isNaN(taxWithheld) ? undefined : taxWithheld
       }
     });
     setEditingId(null);
@@ -101,6 +105,16 @@ export default function RecordList({
                         onChange={(e) => setDraft((d) => ({ ...d, date: e.target.value }))}
                         className="text-xs font-mono border border-line rounded-md px-2 py-1 bg-paper outline-none focus:border-ledger"
                       />
+                      {r.record_type === "income" && (
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={draft.taxWithheld}
+                          onChange={(e) => setDraft((d) => ({ ...d, taxWithheld: e.target.value }))}
+                          placeholder="Tax withheld"
+                          className="w-28 text-xs font-mono border border-line rounded-md px-2 py-1 bg-paper outline-none focus:border-ledger"
+                        />
+                      )}
                       <button
                         onClick={() => saveEdit(r.id)}
                         disabled={busy === r.id}
@@ -123,6 +137,10 @@ export default function RecordList({
                       {r.extracted.amount !== undefined ? `$${r.extracted.amount.toLocaleString()}` : "no amount"} ·{" "}
                       {r.extracted.date ?? "no date"}
                       {category ? ` · ${category.code}` : ""}
+                      {r.record_type === "income" &&
+                        (r.extracted.tax_withheld
+                          ? ` · $${r.extracted.tax_withheld.toLocaleString()} withheld`
+                          : " · no tax withheld recorded")}
                       <button
                         onClick={() => startEdit(r)}
                         className="ml-2 text-ink2 hover:text-ledger underline underline-offset-2"
