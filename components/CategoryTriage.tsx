@@ -26,7 +26,7 @@ export default function CategoryTriage({ sessionId, batch, onAnswered }: Props) 
 
   if (batch.length === 0) {
     return (
-      <p className="text-sm text-ink/60">
+      <p className="text-sm text-ink2">
         Triage complete — every category has been checked.
       </p>
     );
@@ -45,14 +45,14 @@ export default function CategoryTriage({ sessionId, batch, onAnswered }: Props) 
               <button
                 disabled={submitting === node.code}
                 onClick={() => answer(node.code, true)}
-                className="px-4 py-1.5 text-xs font-mono uppercase tracking-wide border border-ledger text-ledger hover:bg-ledger hover:text-paper transition-colors disabled:opacity-50"
+                className="px-4 py-1.5 text-xs font-mono uppercase tracking-wide border border-ledger text-ledger rounded-md hover:bg-ledger hover:text-paper transition-colors disabled:opacity-50"
               >
                 Yes
               </button>
               <button
                 disabled={submitting === node.code}
                 onClick={() => answer(node.code, false)}
-                className="px-4 py-1.5 text-xs font-mono uppercase tracking-wide border border-line text-ink/60 hover:border-ink hover:text-ink transition-colors disabled:opacity-50"
+                className="px-4 py-1.5 text-xs font-mono uppercase tracking-wide border border-line text-ink2 rounded-md hover:border-ink hover:text-ink transition-colors disabled:opacity-50"
               >
                 No
               </button>

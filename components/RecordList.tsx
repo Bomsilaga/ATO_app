@@ -2,7 +2,17 @@
 
 import { useState } from "react";
 import { TaxRecord } from "@/lib/types";
-import { ATO_CATEGORIES } from "@/lib/taxonomy";
+import { ATO_CATEGORIES, getCategoryByCode } from "@/lib/taxonomy";
+import Meter from "./Meter";
+import StatusBadge from "./StatusBadge";
+
+const SOURCE_LABEL: Record<TaxRecord["source"], string> = {
+  text: "Chat",
+  file: "File upload",
+  csv: "Spreadsheet",
+  api: "API",
+  manual: "Manual entry"
+};
 
 export default function RecordList({
   records,
@@ -12,6 +22,7 @@ export default function RecordList({
   onChanged: () => void;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   async function patch(recordId: string, payload: Record<string, unknown>) {
     setBusy(recordId);
@@ -25,54 +36,118 @@ export default function RecordList({
   }
 
   if (records.length === 0) {
-    return <p className="text-sm text-ink/60">No records yet — add text or upload a file above.</p>;
+    return <p className="text-sm text-ink2">No records yet — chat, add manually, or upload a file above.</p>;
   }
 
   return (
     <ul className="space-y-3">
-      {records.map((r) => (
-        <li key={r.id} className="hairline pb-3">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1">
-              <p className="text-sm text-ink">{r.extracted.description || r.raw_input}</p>
-              <p className="text-xs text-ink/50 mt-1 font-mono">
-                {r.extracted.amount !== undefined ? `$${r.extracted.amount}` : "no amount"} ·{" "}
-                {r.extracted.date ?? "no date"} · {r.status}
-              </p>
+      {records.map((r) => {
+        const category = r.category_code ? getCategoryByCode(r.category_code) : undefined;
+        const isOpen = expanded === r.id;
+
+        return (
+          <li key={r.id} className="card p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-ink truncate">{r.extracted.description || r.raw_input}</p>
+                <p className="text-xs text-ink2 mt-1 font-mono">
+                  {r.extracted.amount !== undefined ? `$${r.extracted.amount.toLocaleString()}` : "no amount"} ·{" "}
+                  {r.extracted.date ?? "no date"}
+                  {category ? ` · ${category.code}` : ""}
+                </p>
+              </div>
+              <StatusBadge status={r.status} />
             </div>
-            <select
-              value={r.category_code ?? ""}
-              onChange={(e) => patch(r.id, { categoryCode: e.target.value })}
-              className="text-xs font-mono border border-line px-2 py-1 bg-transparent"
-            >
-              <option value="">Uncategorised</option>
-              {ATO_CATEGORIES.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.code}
-                </option>
-              ))}
-            </select>
-          </div>
-          {r.status !== "confirmed" && (
-            <div className="mt-2 flex gap-2">
-              <button
-                disabled={busy === r.id || !r.category_code}
-                onClick={() => patch(r.id, { status: "confirmed" })}
-                className="px-3 py-1 text-xs font-mono uppercase border border-ledger text-ledger hover:bg-ledger hover:text-paper disabled:opacity-40"
+
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <select
+                value={r.category_code ?? ""}
+                onChange={(e) => patch(r.id, { categoryCode: e.target.value })}
+                className="text-xs font-mono border border-line rounded-md px-2 py-1 bg-surface text-ink"
               >
-                Confirm
-              </button>
+                <option value="">Uncategorised</option>
+                {ATO_CATEGORIES.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.code} — {c.label}
+                  </option>
+                ))}
+              </select>
+
               <button
-                disabled={busy === r.id}
-                onClick={() => patch(r.id, { status: "excluded" })}
-                className="px-3 py-1 text-xs font-mono uppercase border border-line text-ink/50 hover:border-flag hover:text-flag"
+                onClick={() => setExpanded(isOpen ? null : r.id)}
+                className="text-xs font-mono uppercase tracking-wide text-ink2 hover:text-ink"
               >
-                Exclude
+                {isOpen ? "Hide details ▲" : "How was this determined? ▼"}
               </button>
+
+              {r.status !== "confirmed" && (
+                <div className="flex gap-2 ml-auto">
+                  <button
+                    disabled={busy === r.id || !r.category_code}
+                    onClick={() => patch(r.id, { status: "confirmed" })}
+                    className="px-3 py-1 text-xs font-mono uppercase border border-ledger text-ledger rounded-md hover:bg-ledger hover:text-paper disabled:opacity-40"
+                  >
+                    Confirm
+                  </button>
+                  <button
+                    disabled={busy === r.id}
+                    onClick={() => patch(r.id, { status: "excluded" })}
+                    className="px-3 py-1 text-xs font-mono uppercase border border-line text-ink2 rounded-md hover:border-flag hover:text-flag"
+                  >
+                    Exclude
+                  </button>
+                </div>
+              )}
             </div>
-          )}
-        </li>
-      ))}
+
+            {isOpen && (
+              <div className="mt-4 pt-4 hairline space-y-3 text-sm">
+                <div>
+                  <p className="text-xs font-mono uppercase tracking-wide text-muted mb-1">Confidence</p>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1">
+                      <Meter value={r.confidence} height={5} />
+                    </div>
+                    <span className="text-xs font-mono text-ink2 w-10 text-right">
+                      {Math.round(r.confidence * 100)}%
+                    </span>
+                  </div>
+                </div>
+
+                {r.extracted.reasoning && (
+                  <div>
+                    <p className="text-xs font-mono uppercase tracking-wide text-muted mb-1">Why this category</p>
+                    <p className="text-ink2">{r.extracted.reasoning}</p>
+                  </div>
+                )}
+
+                <div>
+                  <p className="text-xs font-mono uppercase tracking-wide text-muted mb-1">Source</p>
+                  <p className="text-ink2">
+                    {SOURCE_LABEL[r.source]}
+                    {r.evidence_ref ? ` — ${r.evidence_ref}` : ""}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs font-mono uppercase tracking-wide text-muted mb-1">Raw input</p>
+                  <p className="font-mono text-xs text-ink2 bg-paper rounded-md p-2 break-words">{r.raw_input}</p>
+                </div>
+
+                {(r.extracted.asset || r.extracted.quantity !== undefined) && (
+                  <div>
+                    <p className="text-xs font-mono uppercase tracking-wide text-muted mb-1">Extracted fields</p>
+                    <p className="text-ink2 font-mono text-xs">
+                      {r.extracted.asset && `asset: ${r.extracted.asset} `}
+                      {r.extracted.quantity !== undefined && `qty: ${r.extracted.quantity}`}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }

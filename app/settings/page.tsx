@@ -46,16 +46,16 @@ export default function SettingsPage() {
     <main className="min-h-screen px-6 py-12 max-w-md mx-auto">
       <button
         onClick={() => router.push("/dashboard")}
-        className="text-xs font-mono uppercase tracking-wide text-ink/50 hover:text-ink mb-8"
+        className="text-xs font-mono uppercase tracking-wide text-ink2 hover:text-ink mb-8"
       >
         ← Back to dashboard
       </button>
 
       <h1 className="ledger-heading text-2xl font-semibold mb-6">Change login</h1>
 
-      <form onSubmit={handleSubmit} className="space-y-4 border border-line p-6 bg-white/40">
+      <form onSubmit={handleSubmit} className="space-y-4 card p-6">
         <div>
-          <label className="text-xs font-mono uppercase tracking-wide text-ink/60">
+          <label className="text-xs font-mono uppercase tracking-wide text-ink2">
             Current PIN
           </label>
           <input
@@ -68,7 +68,7 @@ export default function SettingsPage() {
           />
         </div>
         <div>
-          <label className="text-xs font-mono uppercase tracking-wide text-ink/60">
+          <label className="text-xs font-mono uppercase tracking-wide text-ink2">
             New email
           </label>
           <input
@@ -80,7 +80,7 @@ export default function SettingsPage() {
           />
         </div>
         <div>
-          <label className="text-xs font-mono uppercase tracking-wide text-ink/60">
+          <label className="text-xs font-mono uppercase tracking-wide text-ink2">
             New PIN (4-8 digits)
           </label>
           <input
@@ -95,7 +95,7 @@ export default function SettingsPage() {
           />
         </div>
         <div>
-          <label className="text-xs font-mono uppercase tracking-wide text-ink/60">
+          <label className="text-xs font-mono uppercase tracking-wide text-ink2">
             Confirm new PIN
           </label>
           <input
@@ -116,7 +116,7 @@ export default function SettingsPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-ledger text-paper py-2.5 text-sm font-medium tracking-wide hover:bg-ledgerLight transition-colors disabled:opacity-50"
+          className="w-full bg-ledger text-paper py-2.5 rounded-md text-sm font-medium tracking-wide hover:bg-ledgerLight transition-colors disabled:opacity-50"
         >
           {loading ? "Saving…" : "Save"}
         </button>

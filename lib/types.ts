@@ -17,6 +17,7 @@ export interface ExtractedFields {
   counterparty?: string;
   asset?: string; // for crypto/shares/property
   quantity?: number;
+  reasoning?: string; // one-sentence "why this category" from the classifier, for display
 }
 
 export interface TaxRecord {

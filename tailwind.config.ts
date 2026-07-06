@@ -5,12 +5,20 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: "#111417",
-        paper: "#F6F5F1",
-        ledger: "#1F3D3A",
-        ledgerLight: "#2E5B56",
-        flag: "#B5502A",
-        line: "#D8D3C7"
+        ink: "rgb(var(--color-ink) / <alpha-value>)",
+        ink2: "rgb(var(--color-ink2) / <alpha-value>)",
+        muted: "rgb(var(--color-muted) / <alpha-value>)",
+        paper: "rgb(var(--color-paper) / <alpha-value>)",
+        surface: "rgb(var(--color-surface) / <alpha-value>)",
+        ledger: "rgb(var(--color-ledger) / <alpha-value>)",
+        ledgerLight: "rgb(var(--color-ledger-light) / <alpha-value>)",
+        flag: "rgb(var(--color-flag) / <alpha-value>)",
+        line: "rgb(var(--color-line) / <alpha-value>)",
+        accent: "rgb(var(--color-accent) / <alpha-value>)",
+        accentTrack: "rgb(var(--color-accent-track) / <alpha-value>)",
+        good: "rgb(var(--color-good) / <alpha-value>)",
+        warn: "rgb(var(--color-warn) / <alpha-value>)",
+        serious: "rgb(var(--color-serious) / <alpha-value>)"
       },
       fontFamily: {
         mono: ["'IBM Plex Mono'", "monospace"],

@@ -48,12 +48,13 @@ Note from the taxpayer: "${rawText.replace(/"/g, "'")}"
 Extract the amount (AUD number, no symbols), date (ISO yyyy-mm-dd — infer the year from financial
 year ${financialYear} if only a day/month is given), and a short description. Pick the single
 best-fitting category code, or null if genuinely nothing fits. Set confidence 0-1 reflecting how
-sure you are. If a key detail is missing or ambiguous (no amount, no date, unclear whether it's
-income or a deduction), set clarification_question to one short question asking for exactly what's
-missing, else null.
+sure you are. Give a one-sentence reasoning explaining why you picked that category (or why none
+fit). If a key detail is missing or ambiguous (no amount, no date, unclear whether it's income or
+a deduction), set clarification_question to one short question asking for exactly what's missing,
+else null.
 
 Return ONLY JSON, no markdown fences, no preamble:
-{"category_code": string|null, "confidence": number, "amount": number|null, "date": string|null, "description": string, "clarification_question": string|null}`;
+{"category_code": string|null, "confidence": number, "amount": number|null, "date": string|null, "description": string, "reasoning": string, "clarification_question": string|null}`;
 
   try {
     const response = await client.messages.create({
@@ -74,7 +75,8 @@ Return ONLY JSON, no markdown fences, no preamble:
       extracted: {
         amount: parsed.amount ?? undefined,
         date: parsed.date ?? undefined,
-        description: parsed.description || rawText.trim()
+        description: parsed.description || rawText.trim(),
+        reasoning: parsed.reasoning ?? undefined
       },
       clarification_question: parsed.clarification_question ?? null
     };

@@ -2,23 +2,54 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Colors as "R G B" triples so Tailwind's /opacity modifiers (text-ink/60 etc.)
+   work against them — see tailwind.config.ts's rgb(var(...) / <alpha-value>). */
 :root {
-  --color-ink: #111417;
-  --color-paper: #f6f5f1;
-  --color-ledger: #1f3d3a;
-  --color-ledger-light: #2e5b56;
-  --color-flag: #b5502a;
-  --color-line: #d8d3c7;
+  --color-ink: 20 19 15;
+  --color-ink2: 87 84 76;
+  --color-muted: 138 135 126;
+  --color-paper: 246 245 241;
+  --color-surface: 255 255 255;
+  --color-ledger: 31 61 58;
+  --color-ledger-light: 46 91 86;
+  --color-flag: 181 80 42;
+  --color-line: 220 215 202;
+  --color-accent: 42 120 214;
+  --color-accent-track: 205 226 251;
+  --color-good: 13 122 31;
+  --color-warn: 168 113 10;
+  --color-serious: 193 79 31;
+  --shadow-card: 0 1px 2px rgba(20, 19, 15, 0.05), 0 10px 28px -14px rgba(20, 19, 15, 0.18);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-ink: 243 242 238;
+    --color-ink2: 195 194 183;
+    --color-muted: 145 143 134;
+    --color-paper: 18 18 16;
+    --color-surface: 27 27 24;
+    --color-ledger: 90 167 157;
+    --color-ledger-light: 116 188 177;
+    --color-flag: 224 138 99;
+    --color-line: 48 47 42;
+    --color-accent: 74 144 232;
+    --color-accent-track: 34 51 73;
+    --color-good: 53 177 85;
+    --color-warn: 217 154 43;
+    --color-serious: 226 118 74;
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35), 0 10px 28px -14px rgba(0, 0, 0, 0.6);
+  }
 }
 
 body {
-  background-color: var(--color-paper);
+  background-color: rgb(var(--color-paper));
   background-image: linear-gradient(
     to bottom,
     transparent 0,
     transparent 39px,
-    var(--color-line) 39px,
-    var(--color-line) 40px
+    rgb(var(--color-line)) 39px,
+    rgb(var(--color-line)) 40px
   );
   background-size: 100% 40px;
 }
@@ -28,9 +59,9 @@ body {
   font-size: 0.7rem;
   letter-spacing: 0.05em;
   padding: 2px 6px;
-  border: 1px solid var(--color-ledger);
-  color: var(--color-ledger);
-  border-radius: 2px;
+  border: 1px solid rgb(var(--color-ledger));
+  color: rgb(var(--color-ledger));
+  border-radius: 3px;
 }
 
 .ledger-heading {
@@ -38,11 +69,71 @@ body {
 }
 
 .hairline {
-  border-bottom: 1px solid var(--color-line);
+  border-bottom: 1px solid rgb(var(--color-line));
+}
+
+.card {
+  background-color: rgb(var(--color-surface));
+  border: 1px solid rgb(var(--color-line));
+  border-radius: 14px;
+  box-shadow: var(--shadow-card);
+}
+
+/* Meter: a ratio against a limit (triage progress, confidence). Fill in the
+   accent hue, unfilled track a lighter step of the same ramp so state reads
+   across the whole bar, per the dataviz meter spec. */
+.meter-track {
+  background-color: rgb(var(--color-accent-track));
+  border-radius: 999px;
+  overflow: hidden;
+}
+.meter-fill {
+  background-color: rgb(var(--color-accent));
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+.badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.badge-good {
+  color: rgb(var(--color-good));
+  border-color: currentColor;
+  background: rgb(var(--color-good) / 0.12);
+}
+.badge-warn {
+  color: rgb(var(--color-warn));
+  border-color: currentColor;
+  background: rgb(var(--color-warn) / 0.14);
+}
+.badge-serious {
+  color: rgb(var(--color-serious));
+  border-color: currentColor;
+  background: rgb(var(--color-serious) / 0.14);
+}
+.badge-muted {
+  color: rgb(var(--color-muted));
+  border-color: currentColor;
+  background: rgb(var(--color-muted) / 0.12);
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-ledger);
+  outline: 2px solid rgb(var(--color-ledger));
   outline-offset: 2px;
 }
 

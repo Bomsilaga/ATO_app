@@ -14,7 +14,7 @@ export default function PrefillReport({
   disclaimer: string;
 }) {
   return (
-    <div className="border border-line p-6 bg-white/40 space-y-6">
+    <div className="card p-6 space-y-6">
       <div>
         <span className="code-tag">PRE-FILL OUTPUT</span>
         <h3 className="ledger-heading text-lg font-semibold mt-2">Label-mapped summary</h3>
@@ -22,7 +22,7 @@ export default function PrefillReport({
 
       <table className="w-full text-sm">
         <thead>
-          <tr className="hairline text-left text-xs font-mono uppercase text-ink/50">
+          <tr className="hairline text-left text-xs font-mono uppercase text-muted">
             <th className="pb-2">Label</th>
             <th className="pb-2">Description</th>
             <th className="pb-2 text-right">Amount</th>
@@ -34,7 +34,7 @@ export default function PrefillReport({
               <td className="py-2 font-mono">
                 {l.question_code}
                 {l.agent_review_recommended && (
-                  <span className="ml-2 text-flag text-xs">⚑ agent review</span>
+                  <span className="ml-2 badge badge-warn">⚑ agent review</span>
                 )}
               </td>
               <td className="py-2">{l.label}</td>
@@ -51,7 +51,7 @@ export default function PrefillReport({
           <p className="text-xs font-mono uppercase tracking-wide text-flag mb-2">
             Flagged for review
           </p>
-          <ul className="text-sm space-y-1 list-disc list-inside text-ink/80">
+          <ul className="text-sm space-y-1 list-disc list-inside text-ink2">
             {agentFlags.map((f, i) => (
               <li key={i}>{f}</li>
             ))}
@@ -59,7 +59,7 @@ export default function PrefillReport({
         </div>
       )}
 
-      <p className="text-xs text-ink/50 border-t border-line pt-4">{disclaimer}</p>
+      <p className="text-xs text-muted border-t border-line pt-4">{disclaimer}</p>
     </div>
   );
 }

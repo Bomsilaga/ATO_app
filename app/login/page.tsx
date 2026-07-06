@@ -40,14 +40,14 @@ export default function LoginPage() {
           <h1 className="ledger-heading text-3xl mt-3 font-semibold text-ink">
             ATO Triage
           </h1>
-          <p className="text-sm text-ink/60 mt-1">
+          <p className="text-sm text-ink2 mt-1">
             Every label, checked. Nothing assumed.
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="card p-6 space-y-4">
           <div>
-            <label className="text-xs font-mono uppercase tracking-wide text-ink/60">
+            <label className="text-xs font-mono uppercase tracking-wide text-ink2">
               Email
             </label>
             <input
@@ -60,7 +60,7 @@ export default function LoginPage() {
             />
           </div>
           <div>
-            <label className="text-xs font-mono uppercase tracking-wide text-ink/60">
+            <label className="text-xs font-mono uppercase tracking-wide text-ink2">
               PIN
             </label>
             <input
@@ -80,7 +80,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-ledger text-paper py-2.5 text-sm font-medium tracking-wide hover:bg-ledgerLight transition-colors disabled:opacity-50"
+            className="w-full bg-ledger text-paper py-2.5 rounded-md text-sm font-medium tracking-wide hover:bg-ledgerLight transition-colors disabled:opacity-50"
           >
             {loading ? "Signing in…" : "Sign in"}
           </button>

@@ -61,10 +61,10 @@ export default function NewFilingForm({ userId }: { userId: string }) {
   }
 
   return (
-    <div className="border border-line p-6 bg-white/40">
+    <div className="card p-6">
       <h2 className="ledger-heading text-xl font-semibold mb-4">Start a new filing</h2>
 
-      <label className="text-xs font-mono uppercase tracking-wide text-ink/60">
+      <label className="text-xs font-mono uppercase tracking-wide text-ink2">
         Filing name
       </label>
       <input
@@ -75,7 +75,7 @@ export default function NewFilingForm({ userId }: { userId: string }) {
         className="mt-1 mb-4 w-full bg-transparent border-b border-line py-2 outline-none focus:border-ledger"
       />
 
-      <label className="text-xs font-mono uppercase tracking-wide text-ink/60">
+      <label className="text-xs font-mono uppercase tracking-wide text-ink2">
         Financial year
       </label>
       <select
@@ -90,7 +90,7 @@ export default function NewFilingForm({ userId }: { userId: string }) {
         ))}
       </select>
 
-      <label className="text-xs font-mono uppercase tracking-wide text-ink/60">
+      <label className="text-xs font-mono uppercase tracking-wide text-ink2">
         Occupation (used to prompt occupation-specific deductions)
       </label>
       <input
@@ -106,7 +106,7 @@ export default function NewFilingForm({ userId }: { userId: string }) {
       <button
         onClick={startFiling}
         disabled={loading}
-        className="w-full bg-ledger text-paper py-2.5 text-sm font-medium tracking-wide hover:bg-ledgerLight transition-colors disabled:opacity-50"
+        className="w-full bg-ledger text-paper py-2.5 rounded-md text-sm font-medium tracking-wide hover:bg-ledgerLight transition-colors disabled:opacity-50"
       >
         {loading ? "Starting…" : "Begin triage"}
       </button>
