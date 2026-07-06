@@ -137,16 +137,27 @@ the plain regex extractor with no category assigned, so you can still categorise
 
 ## Uploads
 
-`app/api/upload/route.ts` handles, by extension:
+`app/api/upload/route.ts` accepts multiple files at once (uploaded sequentially) and handles, by
+extension:
 
-- **CSV / XLSX / XLS**: exchange and bank exports go through `lib/csv-normalizer.ts` (Excel files
-  are converted to CSV first via `sheet_to_csv`, then normalized the same way).
-- **PDF**: tries plain text extraction (`pdf-parse`) first; if that fails or finds no text (signed,
-  scanned, or otherwise image-only PDFs), falls back to sending the file to Claude as a document
-  via `lib/document-extractor.ts`.
-- **JPG / PNG / WEBP / GIF**: sent straight to Claude vision via the same `document-extractor.ts` —
-  covers photographed receipts.
-- **TXT / MD**: each non-trivial line runs through the free-text extractor.
+- **CSV / XLSX / XLS**: known exchange/bank layouts (Binance, CoinSpot, Independent Reserve,
+  generic bank export) go through `lib/csv-normalizer.ts`'s hardcoded column signatures (Excel
+  files are converted to CSV first via `sheet_to_csv`). Anything else — or a mapping that looks
+  degenerate (most rows landing on a $0 amount, typical of a ragged report rather than a clean
+  table) — falls through to whole-document classification.
+- **PDF**: the raw bytes go straight to Claude as a document via `lib/document-classifier.ts`'s
+  `classifyDocumentFile`, so it reads the actual table/form layout instead of flattened
+  `pdf-parse` text (which merges adjacent columns together with no separator and loses label/value
+  pairing — a real ATO tax return form is exactly the shape that breaks). Falls back to a plain
+  per-line `pdf-parse` dump only if `ANTHROPIC_API_KEY` isn't configured at all.
+- **JPG / PNG / WEBP / GIF**: sent the same way via `classifyDocumentFile` — covers photographed
+  receipts.
+- **TXT / MD / unrecognised CSV**: the extracted text goes through `classifyDocumentText`.
+
+In every AI-classified path, the model returns only genuine financial line items — skipping
+personal details, signatures, declarations, boilerplate, and subtotal rows that would double-count
+— each already assigned an ATO category, confidence, and one-sentence reasoning (shown in the UI
+under "How was this determined?").
 
 Anything else is rejected with a clear "unsupported file type" error rather than being silently
 mis-parsed as text.
