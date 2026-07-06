@@ -28,8 +28,22 @@ create table if not exists tax_records (
     check (status in ('unknown', 'candidate', 'confirmed', 'excluded')),
   evidence_ref text,
   confidence numeric not null default 0,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
+
+create or replace function set_updated_at()
+returns trigger as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$ language plpgsql;
+
+create trigger tax_records_set_updated_at
+  before update on tax_records
+  for each row
+  execute function set_updated_at();
 
 create table if not exists crypto_lots (
   id uuid primary key default gen_random_uuid(),

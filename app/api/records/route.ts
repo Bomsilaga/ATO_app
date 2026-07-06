@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
 
   const { data: session, error: sessionError } = await supabase
     .from("tax_sessions")
-    .select("financial_year")
+    .select("financial_year, occupation")
     .eq("id", sessionId)
     .eq("user_id", user.id)
     .single();
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
   // one pass instead of forcing the single-note classifier to guess at just
   // one amount from a much longer blob.
   if (!categoryCode && looksLikeMultiItemPaste(rawText)) {
-    const lines = await classifyDocumentText(rawText, session.financial_year);
+    const lines = await classifyDocumentText(rawText, session.financial_year, session.occupation);
     if (lines.length > 1) {
       const insertRows = lines.map((l) => ({
         session_id: sessionId,
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
         extracted: extractFromText(rawText),
         clarification_question: null as string | null
       }
-    : await classifyRecord(rawText, session.financial_year);
+    : await classifyRecord(rawText, session.financial_year, session.occupation);
 
   const { data, error } = await supabase
     .from("tax_records")

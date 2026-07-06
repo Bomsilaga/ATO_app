@@ -27,13 +27,30 @@ export default function ReportPanel({ sessionId, financialYear }: { sessionId: s
   const [exporting, setExporting] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [stale, setStale] = useState(false);
 
   const loadReport = useCallback(async () => {
-    const res = await fetch(`/api/prefill?sessionId=${sessionId}`);
-    if (res.ok) {
-      const data = await res.json();
-      setReport(data);
-      setLabels(data?.labels ?? []);
+    const [reportRes, recordsRes] = await Promise.all([
+      fetch(`/api/prefill?sessionId=${sessionId}`),
+      fetch(`/api/records?sessionId=${sessionId}`)
+    ]);
+
+    let reportData: PrefillOutputRow | null = null;
+    if (reportRes.ok) {
+      reportData = await reportRes.json();
+      setReport(reportData);
+      setLabels(reportData?.labels ?? []);
+    }
+
+    if (recordsRes.ok && reportData) {
+      const records: { updated_at: string }[] = await recordsRes.json();
+      const latestChange = records.reduce(
+        (max, r) => (r.updated_at > max ? r.updated_at : max),
+        "1970-01-01T00:00:00Z"
+      );
+      setStale(latestChange > reportData.generated_at);
+    } else {
+      setStale(false);
     }
   }, [sessionId]);
 
@@ -83,6 +100,7 @@ export default function ReportPanel({ sessionId, financialYear }: { sessionId: s
     setReport(data);
     setLabels(data.labels ?? []);
     setDirty(false);
+    setStale(false);
   }
 
   function updateAmount(code: string, value: string) {
@@ -165,11 +183,22 @@ export default function ReportPanel({ sessionId, financialYear }: { sessionId: s
             <button
               onClick={generateReport}
               disabled={generating}
-              className="text-xs font-mono uppercase tracking-wide text-ink2 hover:text-ink disabled:opacity-50"
+              className={`text-xs font-mono uppercase tracking-wide disabled:opacity-50 ${
+                stale ? "text-flag hover:text-flag" : "text-ink2 hover:text-ink"
+              }`}
             >
               {generating ? "Regenerating…" : "Regenerate ↻"}
             </button>
           </div>
+
+          {stale && !generating && (
+            <div className="card p-4 border-flag bg-flag/5">
+              <p className="text-sm text-flag">
+                Records have changed since this report was generated — click "Regenerate" above so
+                the figures below reflect your latest edits.
+              </p>
+            </div>
+          )}
 
           {estimate && (
             <div className="card p-6 space-y-4">

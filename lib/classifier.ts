@@ -35,13 +35,14 @@ function fallback(rawText: string): ClassificationResult {
 
 export async function classifyRecord(
   rawText: string,
-  financialYear: FinancialYear
+  financialYear: FinancialYear,
+  occupation?: string | null
 ): Promise<ClassificationResult> {
   if (!process.env.ANTHROPIC_API_KEY) return fallback(rawText);
 
   const prompt = `You are triaging a single free-text note into an Australian Tax Office (ATO)
 individual tax return category for financial year ${financialYear}.
-
+${occupation ? `\nThe taxpayer's occupation is "${occupation}" — use this as context (e.g. don't assume a business/trading activity from a tool or subscription name alone if it doesn't match their stated work), but the note's own content always takes priority over an assumption from occupation.\n` : ""}
 Categories (code | type | label):
 ${CATEGORY_LIST}
 

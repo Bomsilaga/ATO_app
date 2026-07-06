@@ -36,6 +36,7 @@ export interface TaxRecord {
   evidence_ref: string | null; // uploaded file path, if any
   confidence: number; // 0-1, classifier confidence
   created_at: string;
+  updated_at: string;
 }
 
 export interface CategoryNode {

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { TaxSession, TaxRecord, RecordStatus } from "@/lib/types";
 import { getCategoryByCode } from "@/lib/taxonomy";
 import Meter from "./Meter";
@@ -10,7 +11,31 @@ function currency(n: number) {
   return n.toLocaleString("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 });
 }
 
-export default function SessionSummary({ session, records }: { session: TaxSession; records: TaxRecord[] }) {
+export default function SessionSummary({
+  session,
+  records,
+  onSessionChanged
+}: {
+  session: TaxSession;
+  records: TaxRecord[];
+  onSessionChanged?: () => void;
+}) {
+  const [editingOccupation, setEditingOccupation] = useState(false);
+  const [occupationDraft, setOccupationDraft] = useState(session.occupation ?? "");
+  const [savingOccupation, setSavingOccupation] = useState(false);
+
+  async function saveOccupation() {
+    setSavingOccupation(true);
+    await fetch("/api/sessions", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: session.id, occupation: occupationDraft })
+    });
+    setSavingOccupation(false);
+    setEditingOccupation(false);
+    onSessionChanged?.();
+  }
+
   const triageTotal = session.triage_state.length;
   const triageAnswered = session.triage_state.filter((n) => n.state === "asked_and_answered").length;
   const triageFraction = triageTotal > 0 ? triageAnswered / triageTotal : 0;
@@ -44,6 +69,45 @@ export default function SessionSummary({ session, records }: { session: TaxSessi
           </span>
         </div>
         <h2 className="ledger-heading text-lg font-semibold mt-3">{session.name}</h2>
+
+        <div className="mt-2">
+          {editingOccupation ? (
+            <div className="flex gap-2">
+              <input
+                value={occupationDraft}
+                onChange={(e) => setOccupationDraft(e.target.value)}
+                placeholder="Occupation"
+                className="flex-1 text-xs border border-line rounded-md px-2 py-1 bg-paper outline-none focus:border-ledger"
+              />
+              <button
+                onClick={saveOccupation}
+                disabled={savingOccupation}
+                className="text-xs font-mono uppercase text-ledger hover:underline"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => {
+                  setEditingOccupation(false);
+                  setOccupationDraft(session.occupation ?? "");
+                }}
+                className="text-xs font-mono uppercase text-ink2 hover:underline"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <p className="text-xs text-ink2">
+              {session.occupation || "No occupation set"}
+              <button
+                onClick={() => setEditingOccupation(true)}
+                className="ml-2 text-ink2 hover:text-ledger underline underline-offset-2"
+              >
+                edit
+              </button>
+            </p>
+          )}
+        </div>
 
         <div className="mt-4">
           <div className="flex items-center justify-between text-xs text-ink2 mb-1.5">

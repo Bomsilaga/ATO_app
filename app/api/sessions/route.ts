@@ -23,7 +23,10 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(data);
 }
 
-// Body: { sessionId, code, applies, notes? }
+// Body: { sessionId, code, applies, notes? } for a triage answer, OR
+// { sessionId, occupation } to correct the occupation after creation — kept
+// as a separate branch since it doesn't touch triage_state and shouldn't
+// require re-answering anything.
 export async function PATCH(request: NextRequest) {
   const supabase = createClient();
   const {
@@ -32,7 +35,7 @@ export async function PATCH(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
   const body = await request.json();
-  const { sessionId, code, applies, notes } = body;
+  const { sessionId, code, applies, notes, occupation } = body;
 
   const { data: session, error: fetchError } = await supabase
     .from("tax_sessions")
@@ -43,6 +46,18 @@ export async function PATCH(request: NextRequest) {
 
   if (fetchError || !session)
     return NextResponse.json({ error: "session not found" }, { status: 404 });
+
+  if (occupation !== undefined && !code) {
+    const { data, error } = await supabase
+      .from("tax_sessions")
+      .update({ occupation: occupation || null, updated_at: new Date().toISOString() })
+      .eq("id", sessionId)
+      .select()
+      .single();
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(data);
+  }
 
   const updatedState = answerNode(session.triage_state, code, applies, notes);
 

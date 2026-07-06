@@ -63,7 +63,8 @@ async function handleCsvLikeText(
   csvText: string,
   sessionId: string,
   filename: string,
-  financialYear: FinancialYear
+  financialYear: FinancialYear,
+  occupation?: string | null
 ) {
   const { format, rows, unrecognized, headers, rawRows } = normalizeCsv(csvText);
 
@@ -123,7 +124,7 @@ async function handleCsvLikeText(
   // No usable column mapping (or one that mostly produced zero amounts —
   // typical of a ragged report rather than a clean table): read the whole
   // thing as a document instead of column-by-column.
-  const classified = await classifyDocumentText(csvText, financialYear);
+  const classified = await classifyDocumentText(csvText, financialYear, occupation);
   if (classified.length === 0) {
     console.error(
       "handleCsvLikeText: falling through to 422. mapping:", JSON.stringify(mapping),
@@ -161,7 +162,7 @@ export async function POST(request: NextRequest) {
 
   const { data: session, error: sessionError } = await supabase
     .from("tax_sessions")
-    .select("financial_year")
+    .select("financial_year, occupation")
     .eq("id", sessionId)
     .eq("user_id", user.id)
     .single();
@@ -175,7 +176,14 @@ export async function POST(request: NextRequest) {
 
   // --- CSV: exchange/bank exports go through the normalizer ---
   if (ext === "csv") {
-    return handleCsvLikeText(supabase, buffer.toString("utf-8"), sessionId, file.name, session.financial_year);
+    return handleCsvLikeText(
+      supabase,
+      buffer.toString("utf-8"),
+      sessionId,
+      file.name,
+      session.financial_year,
+      session.occupation
+    );
   }
 
   // --- Excel: convert the first sheet to CSV, then reuse the same path ---
@@ -192,7 +200,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return handleCsvLikeText(supabase, csvText, sessionId, file.name, session.financial_year);
+    return handleCsvLikeText(supabase, csvText, sessionId, file.name, session.financial_year, session.occupation);
   }
 
   // --- PDF: classify the raw bytes directly so Claude reads the actual
@@ -239,7 +247,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ format: "pdf_text", count: data.length, records: data });
     }
 
-    const classified = await classifyDocumentFile(buffer, "application/pdf", session.financial_year);
+    const classified = await classifyDocumentFile(buffer, "application/pdf", session.financial_year, session.occupation);
     if (classified.length === 0) {
       return NextResponse.json(
         {
@@ -255,7 +263,7 @@ export async function POST(request: NextRequest) {
   // --- Images: receipts, screenshots — via Claude vision ---
   const imageMediaType = IMAGE_MEDIA_TYPES[ext];
   if (imageMediaType) {
-    const classified = await classifyDocumentFile(buffer, imageMediaType, session.financial_year);
+    const classified = await classifyDocumentFile(buffer, imageMediaType, session.financial_year, session.occupation);
     if (classified.length === 0) {
       return NextResponse.json(
         { error: "Couldn't find any financial line items in this image — make sure amounts/dates are legible." },
@@ -293,7 +301,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ format: "plain_text", count: data.length, records: data });
     }
 
-    const classified = await classifyDocumentText(text, session.financial_year);
+    const classified = await classifyDocumentText(text, session.financial_year, session.occupation);
     if (classified.length === 0) {
       return NextResponse.json(
         { error: "Couldn't identify any financial line items in this file." },

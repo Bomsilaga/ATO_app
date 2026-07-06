@@ -223,7 +223,7 @@ export default function SessionPage() {
           )}
         </div>
 
-        <SessionSummary session={session} records={records} />
+        <SessionSummary session={session} records={records} onSessionChanged={loadSession} />
       </div>
     </main>
   );

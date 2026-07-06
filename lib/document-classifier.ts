@@ -20,11 +20,11 @@ export interface ClassifiedLine extends ExtractedFields {
   confidence: number;
 }
 
-function buildPrompt(financialYear: FinancialYear): string {
+function buildPrompt(financialYear: FinancialYear, occupation?: string | null): string {
   return `You are triaging a document for an Australian tax return, financial year ${financialYear}.
 The document could be a tax return form, a bank/crypto exchange report, or a plain financial
 summary — you don't know its exact shape in advance.
-
+${occupation ? `\nThe taxpayer's occupation is "${occupation}" — use this as context (e.g. don't assume a business/trading activity from a tool or subscription name alone if it doesn't match their stated work), but the document's own content always takes priority over an assumption from occupation.\n` : ""}
 Extract ONLY genuine financial line items relevant to an individual tax return: real income,
 deduction, offset, or capital gain/loss amounts.
 
@@ -122,11 +122,12 @@ function parseLines(responseText: string): ClassifiedLine[] {
 // prose), so there's no layout to lose by not sending the original bytes.
 export async function classifyDocumentText(
   text: string,
-  financialYear: FinancialYear
+  financialYear: FinancialYear,
+  occupation?: string | null
 ): Promise<ClassifiedLine[]> {
   if (!process.env.ANTHROPIC_API_KEY) return [];
 
-  const prompt = `${buildPrompt(financialYear)}\n\nDocument text:\n"""\n${text.slice(0, 60000)}\n"""`;
+  const prompt = `${buildPrompt(financialYear, occupation)}\n\nDocument text:\n"""\n${text.slice(0, 60000)}\n"""`;
 
   try {
     const response = await client.messages.create({
@@ -164,7 +165,8 @@ export async function classifyDocumentText(
 export async function classifyDocumentFile(
   buffer: Buffer,
   mediaType: string,
-  financialYear: FinancialYear
+  financialYear: FinancialYear,
+  occupation?: string | null
 ): Promise<ClassifiedLine[]> {
   if (!process.env.ANTHROPIC_API_KEY) return [];
 
@@ -183,7 +185,7 @@ export async function classifyDocumentFile(
     const response = await client.messages.create({
       model: MODEL,
       max_tokens: 8000,
-      messages: [{ role: "user", content: [block, { type: "text", text: buildPrompt(financialYear) }] as any }],
+      messages: [{ role: "user", content: [block, { type: "text", text: buildPrompt(financialYear, occupation) }] as any }],
       tools: [{ type: "web_search_20250305", name: "web_search" } as any]
     });
     const responseText = response.content

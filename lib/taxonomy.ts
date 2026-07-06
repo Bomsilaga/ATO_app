@@ -45,6 +45,15 @@ export const ATO_CATEGORIES: CategoryNode[] = [
     parent_group: "government"
   },
   {
+    code: "WORKCOVER",
+    label: "Workers compensation payments (weekly benefits or lump sum)",
+    question_type: "income",
+    triage_prompt:
+      "Did you receive workers compensation payments this year — either weekly income-replacement benefits or a lump sum (e.g. for permanent impairment)?",
+    requires_agent_review: true,
+    parent_group: "employment"
+  },
+  {
     code: "Q7",
     label: "Australian annuities and superannuation income streams",
     question_type: "income",
