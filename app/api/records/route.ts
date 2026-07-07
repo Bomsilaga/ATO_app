@@ -3,6 +3,17 @@ import { createClient } from "@/lib/supabase/server";
 import { extractFromText, looksLikeMultiItemPaste } from "@/lib/text-extractor";
 import { classifyRecord } from "@/lib/classifier";
 import { classifyDocumentText } from "@/lib/document-classifier";
+import { isDateInFinancialYear, whichFinancialYear } from "@/lib/financial-year";
+
+// A date the classifier extracted might genuinely belong to a different
+// financial year than the one being filed (e.g. a May 2025 purchase entered
+// into a FY2025-26 filing actually belongs in FY2024-25) — flag it instead
+// of silently filing it under the wrong year.
+function dateYearMismatchWarning(date: string | undefined, financialYear: string): string | null {
+  if (!date || isDateInFinancialYear(date, financialYear)) return null;
+  const actualFy = whichFinancialYear(date);
+  return `Heads up: ${date} falls in FY${actualFy}, not FY${financialYear} — this filing is for FY${financialYear}. It's been saved here anyway; move it to (or start) the FY${actualFy} filing if that's wrong.`;
+}
 
 export async function GET(request: NextRequest) {
   const supabase = createClient();
@@ -88,7 +99,11 @@ export async function POST(request: NextRequest) {
       const { data, error } = await supabase.from("tax_records").insert(insertRows).select();
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-      return NextResponse.json({ multi: true, count: data.length, records: data });
+      const dateWarnings = data
+        .map((r) => dateYearMismatchWarning(r.extracted?.date, session.financial_year))
+        .filter((w): w is string => w !== null);
+
+      return NextResponse.json({ multi: true, count: data.length, records: data, date_warnings: dateWarnings });
     }
     // 0 or 1 line found — fall through to the single-note classifier below,
     // which still gives a clarification question if something's missing.
@@ -120,7 +135,11 @@ export async function POST(request: NextRequest) {
     : await supabase.from("tax_records").insert(row).select().single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ...data, clarification_question: classification.clarification_question });
+  return NextResponse.json({
+    ...data,
+    clarification_question: classification.clarification_question,
+    date_warning: dateYearMismatchWarning(classification.extracted.date, session.financial_year)
+  });
 }
 
 // Body: { recordId, status?, categoryCode?, recordType?, extracted? }

@@ -136,6 +136,11 @@ export default function SessionPage() {
       setPending(null);
     }
 
+    if (res.ok && data.date_warning) reply += `\n\n⚠ ${data.date_warning}`;
+    if (res.ok && data.date_warnings?.length) {
+      reply += `\n\n${data.date_warnings.map((w: string) => `⚠ ${w}`).join("\n")}`;
+    }
+
     setChatLog((log) => [...log, { text, reply }]);
     loadRecords();
   }
