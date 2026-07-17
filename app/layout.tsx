@@ -1,9 +1,16 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
 
 export const metadata: Metadata = {
   title: "ATO Triage — tax categorisation, done properly",
-  description: "Text or file in, categorised ATO labels out. Nothing assumed."
+  description: "Text or file in, categorised ATO labels out. Nothing assumed.",
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "ATO Triage" },
+  icons: { icon: "/icons/icon-192.png", apple: "/icons/icon-192.png" }
+};
+
+export const viewport: Viewport = {
+  themeColor: "#1a4731"
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -16,7 +23,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body className="bg-paper text-ink font-sans antialiased">{children}</body>
+      <body className="bg-paper text-ink font-sans antialiased">
+        <ServiceWorkerRegistrar />
+        {children}
+      </body>
     </html>
   );
 }

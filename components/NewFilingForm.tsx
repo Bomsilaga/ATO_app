@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { initTriageState } from "@/lib/triage-engine";
+import { isCatchUpFiling } from "@/lib/financial-year";
 
 function currentAuFinancialYear(): string {
   const now = new Date();
@@ -81,14 +82,20 @@ export default function NewFilingForm({ userId }: { userId: string }) {
       <select
         value={financialYear}
         onChange={(e) => setFinancialYear(e.target.value)}
-        className="mt-1 mb-4 w-full bg-transparent border-b border-line py-2 outline-none focus:border-ledger"
+        className="mt-1 mb-1 w-full bg-transparent border-b border-line py-2 outline-none focus:border-ledger"
       >
         {recentFinancialYears().map((fy) => (
           <option key={fy} value={fy}>
             {fy}
+            {isCatchUpFiling(fy) ? " — catch-up return" : " — track as you go"}
           </option>
         ))}
       </select>
+      <p className="text-xs text-ink2 mb-4">
+        {isCatchUpFiling(financialYear)
+          ? "This year ended a while ago, so you'll start with the full triage sweep."
+          : "Current year — start logging deductions straight away, myDeductions-style. Triage can wait until you finalise."}
+      </p>
 
       <label className="text-xs font-mono uppercase tracking-wide text-ink2">
         Occupation (used to prompt occupation-specific deductions)
@@ -108,7 +115,7 @@ export default function NewFilingForm({ userId }: { userId: string }) {
         disabled={loading}
         className="w-full bg-ledger text-paper py-2.5 rounded-md text-sm font-medium tracking-wide hover:bg-ledgerLight transition-colors disabled:opacity-50"
       >
-        {loading ? "Starting…" : "Begin triage"}
+        {loading ? "Starting…" : isCatchUpFiling(financialYear) ? "Begin triage" : "Start tracking deductions"}
       </button>
     </div>
   );

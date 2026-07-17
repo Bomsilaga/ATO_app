@@ -6,8 +6,10 @@ import Link from "next/link";
 import { TaxSession, TaxRecord } from "@/lib/types";
 import { nextTriageBatch, isTriageComplete } from "@/lib/triage-engine";
 import { getCategoryByCode } from "@/lib/taxonomy";
+import { isCatchUpFiling } from "@/lib/financial-year";
 import CategoryTriage from "@/components/CategoryTriage";
 import FileUpload from "@/components/FileUpload";
+import QuickAdd from "@/components/QuickAdd";
 import RecordList from "@/components/RecordList";
 import SessionSummary from "@/components/SessionSummary";
 import ReportPanel from "@/components/ReportPanel";
@@ -23,13 +25,7 @@ interface PendingClarification {
   question: string;
 }
 
-type Tab = "chat" | "records" | "report";
-
-const TABS: { key: Tab; label: string }[] = [
-  { key: "chat", label: "Chat & Upload" },
-  { key: "records", label: "Records" },
-  { key: "report", label: "Report" }
-];
+type Tab = "add" | "chat" | "records" | "report" | "triage";
 
 export default function SessionPage() {
   const params = useParams();
@@ -41,8 +37,9 @@ export default function SessionPage() {
   const [chatLog, setChatLog] = useState<ChatMessage[]>([]);
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<Tab>("chat");
+  const [activeTab, setActiveTab] = useState<Tab>("add");
   const [pending, setPending] = useState<PendingClarification | null>(null);
+  const [addedMsg, setAddedMsg] = useState<string | null>(null);
 
   const loadSession = useCallback(async () => {
     const res = await fetch(`/api/sessions?id=${id}`);
@@ -150,6 +147,20 @@ export default function SessionPage() {
 
   const triageComplete = isTriageComplete(session.triage_state);
   const batch = nextTriageBatch(session.triage_state);
+  // Catch-up filings (FY ended 6+ months ago) front-load the full triage
+  // sweep — the year is done, so answer everything once, then reconstruct.
+  // A current or recently-ended FY works like a deductions tracker instead:
+  // straight into quick-add, with triage available as a tab whenever
+  // they're ready to finalise.
+  const mustTriageFirst = !triageComplete && isCatchUpFiling(session.financial_year);
+
+  const tabs: { key: Tab; label: string }[] = [
+    { key: "add", label: "+ Add" },
+    { key: "chat", label: "Chat" },
+    { key: "records", label: "Records" },
+    { key: "report", label: "Report" },
+    ...(!triageComplete ? [{ key: "triage" as Tab, label: "Triage sweep" }] : [])
+  ];
 
   return (
     <main className="min-h-screen px-6 py-10 max-w-6xl mx-auto">
@@ -162,25 +173,25 @@ export default function SessionPage() {
 
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8 items-start">
         <div className="space-y-8 min-w-0">
-          {!triageComplete && (
+          {mustTriageFirst && (
             <section className="card p-6">
               <h1 className="ledger-heading text-xl font-semibold mb-2">Triage sweep</h1>
               <p className="text-sm text-ink2 mb-6">
-                Answer plainly — every category gets asked, nothing is assumed from your
-                occupation or income type.
+                This financial year ended a while ago, so start by answering plainly — every
+                category gets asked, nothing is assumed from your occupation or income type.
               </p>
               <CategoryTriage sessionId={session.id} batch={batch} onAnswered={handleAnswered} />
             </section>
           )}
 
-          {triageComplete && (
+          {!mustTriageFirst && (
             <>
-              <div className="flex gap-1 border-b border-line">
-                {TABS.map((tab) => (
+              <div className="flex gap-1 border-b border-line overflow-x-auto">
+                {tabs.map((tab) => (
                   <button
                     key={tab.key}
                     onClick={() => setActiveTab(tab.key)}
-                    className={`px-4 py-2 text-xs font-mono uppercase tracking-wide border-b-2 -mb-px transition-colors ${
+                    className={`px-4 py-2 text-xs font-mono uppercase tracking-wide border-b-2 -mb-px transition-colors whitespace-nowrap ${
                       activeTab === tab.key
                         ? "border-ledger text-ledger"
                         : "border-transparent text-ink2 hover:text-ink"
@@ -190,6 +201,43 @@ export default function SessionPage() {
                   </button>
                 ))}
               </div>
+
+              {activeTab === "add" && (
+                <section className="card p-6 space-y-5">
+                  <div>
+                    <h2 className="ledger-heading text-lg font-semibold">Add a deduction or income</h2>
+                    <p className="text-sm text-ink2 mt-1">
+                      Log it the moment it happens — amount, date, what it was for. Category is
+                      picked automatically unless you choose one.
+                    </p>
+                  </div>
+
+                  <QuickAdd
+                    sessionId={session.id}
+                    onAdded={(msg) => {
+                      setAddedMsg(msg);
+                      loadRecords();
+                    }}
+                  />
+
+                  {addedMsg && <p className="text-sm text-ledger whitespace-pre-line">✓ {addedMsg}</p>}
+
+                  <div className="pt-3 hairline">
+                    <FileUpload sessionId={session.id} onUploaded={loadRecords} />
+                  </div>
+                </section>
+              )}
+
+              {activeTab === "triage" && !triageComplete && (
+                <section className="card p-6">
+                  <h2 className="ledger-heading text-lg font-semibold mb-2">Triage sweep</h2>
+                  <p className="text-sm text-ink2 mb-6">
+                    Optional while you're still tracking, but worth finishing before you finalise —
+                    it makes sure no category is silently assumed to be "no".
+                  </p>
+                  <CategoryTriage sessionId={session.id} batch={batch} onAnswered={handleAnswered} />
+                </section>
+              )}
 
               {activeTab === "chat" && (
                 <section className="card p-6 space-y-4">
@@ -257,9 +305,6 @@ export default function SessionPage() {
                     >
                       {sending ? "Categorising…" : "Send"}
                     </button>
-                  </div>
-                  <div className="pt-2 hairline">
-                    <FileUpload sessionId={session.id} onUploaded={loadRecords} />
                   </div>
                 </section>
               )}

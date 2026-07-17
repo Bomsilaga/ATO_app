@@ -26,18 +26,34 @@ export async function POST(request: NextRequest) {
 
   if (error || !session) return NextResponse.json({ error: "session not found" }, { status: 404 });
 
-  if (!isTriageComplete(session.triage_state)) {
-    return NextResponse.json(
-      { error: "triage incomplete — every category must be answered before fetching guidance" },
-      { status: 409 }
+  // Triage answers are the preferred source of active categories. For a
+  // deductions-tracker filing that hasn't run the sweep yet, fall back to
+  // the categories actually present on its records — the user shouldn't
+  // need 30 triage answers before seeing guidance for the three categories
+  // they've been logging all year. (The final report still nudges them to
+  // finish triage so nothing is silently assumed "no".)
+  let activeCodes = isTriageComplete(session.triage_state)
+    ? activeCategories(session.triage_state)
+    : [];
+
+  if (activeCodes.length === 0) {
+    const { data: records } = await supabase
+      .from("tax_records")
+      .select("category_code")
+      .eq("session_id", sessionId)
+      .in("status", ["candidate", "confirmed"]);
+    activeCodes = Array.from(
+      new Set((records ?? []).map((r) => r.category_code).filter((c): c is string => Boolean(c)))
     );
   }
 
-  const activeCodes = activeCategories(session.triage_state);
   const activeNodes = ATO_CATEGORIES.filter((c) => activeCodes.includes(c.code));
 
   if (activeNodes.length === 0) {
-    return NextResponse.json({ error: "no active categories to fetch guidance for" }, { status: 400 });
+    return NextResponse.json(
+      { error: "no active categories yet — add at least one record (or complete triage) first" },
+      { status: 400 }
+    );
   }
 
   const guidance = await fetchLiveGuidance(activeNodes, session.financial_year);

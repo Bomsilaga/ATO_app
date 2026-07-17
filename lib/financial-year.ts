@@ -25,3 +25,18 @@ export function whichFinancialYear(date: string): FinancialYear {
   const startYear = month >= 7 ? year : year - 1;
   return `${startYear}-${String((startYear + 1) % 100).padStart(2, "0")}`;
 }
+
+// A filing whose FY ended 6+ months ago is a catch-up return: the year is
+// over, everything already happened, so the full triage sweep (asking every
+// category up front) is the right entry point. A current or recently-ended
+// FY is the opposite — the user is tracking deductions as they go, ATO
+// myDeductions-style, and forcing 30+ questions before they can log a $20
+// receipt would be hostile. Those filings skip straight to add/upload, with
+// triage still available (and still required before a final report says
+// anything about categories that were never asked).
+export function isCatchUpFiling(fy: FinancialYear, today: Date = new Date()): boolean {
+  const { end } = financialYearRange(fy);
+  const sixMonthsAfterEnd = new Date(`${end}T00:00:00Z`);
+  sixMonthsAfterEnd.setUTCMonth(sixMonthsAfterEnd.getUTCMonth() + 6);
+  return today >= sixMonthsAfterEnd;
+}

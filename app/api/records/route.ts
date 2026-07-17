@@ -4,6 +4,7 @@ import { extractFromText, looksLikeMultiItemPaste } from "@/lib/text-extractor";
 import { classifyRecord } from "@/lib/classifier";
 import { classifyDocumentText } from "@/lib/document-classifier";
 import { isDateInFinancialYear, whichFinancialYear } from "@/lib/financial-year";
+import { getCategoryByCode } from "@/lib/taxonomy";
 
 // A date the classifier extracted might genuinely belong to a different
 // financial year than the one being filed (e.g. a May 2025 purchase entered
@@ -35,11 +36,16 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(data);
 }
 
-// Body: { sessionId, rawText, categoryCode?, recordId? }
+// Body: { sessionId, rawText, categoryCode?, recordId?, fields? }
 // Free-text / chat input path. When the caller doesn't already know the
 // category, the note is classified server-side against the ATO taxonomy for
 // this session's financial year, so the client never embeds classification
 // logic and the chat can show the result immediately.
+//
+// fields is set by the structured quick-add form (myDeductions-style entry
+// where the user typed amount/date/description into separate boxes) — those
+// values are authoritative and override whatever the classifier extracts,
+// which only decides the ATO category in that case.
 //
 // recordId is set when rawText is a clarification-question follow-up rather
 // than a brand new note — the caller merges the accumulated conversation
@@ -54,7 +60,7 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
   const body = await request.json();
-  const { sessionId, rawText, categoryCode, recordId } = body;
+  const { sessionId, rawText, categoryCode, recordId, fields } = body;
 
   if (!sessionId || !rawText) {
     return NextResponse.json({ error: "sessionId and rawText required" }, { status: 400 });
@@ -113,11 +119,29 @@ export async function POST(request: NextRequest) {
     ? {
         category_code: categoryCode as string,
         record_type: null as "income" | "expense" | null,
-        confidence: 0.6,
+        confidence: fields ? 0.95 : 0.6,
         extracted: extractFromText(rawText),
         clarification_question: null as string | null
       }
     : await classifyRecord(rawText, session.financial_year, session.occupation);
+
+  // Structured quick-add values beat anything extracted or classified — the
+  // user typed them into dedicated boxes, there is nothing to infer.
+  if (fields && typeof fields === "object") {
+    if (typeof fields.amount === "number") classification.extracted.amount = fields.amount;
+    if (fields.date) classification.extracted.date = fields.date;
+    if (fields.description) classification.extracted.description = fields.description;
+    if (fields.recordType === "income" || fields.recordType === "expense") {
+      classification.record_type = fields.recordType;
+    }
+    classification.clarification_question = null;
+  }
+
+  if (classification.category_code && !classification.record_type) {
+    const questionType = getCategoryByCode(classification.category_code)?.question_type;
+    if (questionType === "income") classification.record_type = "income";
+    if (questionType === "deduction") classification.record_type = "expense";
+  }
 
   const row = {
     session_id: sessionId,
