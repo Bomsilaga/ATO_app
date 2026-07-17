@@ -80,6 +80,10 @@ create table if not exists travel_routes (
   user_id uuid not null references auth.users(id) on delete cascade,
   from_place text not null,
   to_place text not null,
+  from_lat numeric,
+  from_lon numeric,
+  to_lat numeric,
+  to_lon numeric,
   km numeric not null check (km > 0),
   created_at timestamptz not null default now(),
   unique (user_id, from_place, to_place)

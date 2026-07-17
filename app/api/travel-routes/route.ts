@@ -22,8 +22,10 @@ export async function GET() {
   return NextResponse.json(data);
 }
 
-// Body: { fromPlace, toPlace, km } — upserts so re-entering a pair with a
-// corrected distance just updates it.
+// Body: { fromPlace, toPlace, km, fromCoords?, toCoords? } — upserts so
+// re-entering a pair with a corrected distance just updates it. Coordinates
+// are stored when known (picked from the address autocomplete) so a future
+// pair sharing one endpoint can still resolve a distance automatically.
 export async function POST(request: NextRequest) {
   const supabase = createClient();
   const {
@@ -31,7 +33,7 @@ export async function POST(request: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
-  const { fromPlace, toPlace, km } = await request.json();
+  const { fromPlace, toPlace, km, fromCoords, toCoords } = await request.json();
   const parsedKm = Number(km);
   if (!fromPlace?.trim() || !toPlace?.trim() || !(parsedKm > 0)) {
     return NextResponse.json({ error: "fromPlace, toPlace and a positive km are required" }, { status: 400 });
@@ -40,7 +42,16 @@ export async function POST(request: NextRequest) {
   const { data, error } = await supabase
     .from("travel_routes")
     .upsert(
-      { user_id: user.id, from_place: fromPlace.trim(), to_place: toPlace.trim(), km: parsedKm },
+      {
+        user_id: user.id,
+        from_place: fromPlace.trim(),
+        to_place: toPlace.trim(),
+        km: parsedKm,
+        from_lat: fromCoords?.lat ?? null,
+        from_lon: fromCoords?.lon ?? null,
+        to_lat: toCoords?.lat ?? null,
+        to_lon: toCoords?.lon ?? null
+      },
       { onConflict: "user_id,from_place,to_place" }
     )
     .select()
