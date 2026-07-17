@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "au.com.bomsilaga.atotriage",
+      "sha256_cert_fingerprints": [
+        "3D:36:35:B5:21:69:DA:50:B6:5B:17:6B:9E:AE:A1:5F:8E:6F:85:D2:1B:69:7C:6B:D6:4B:95:FE:1F:B2:98:7E"
+      ]
+    }
+  }
+]
