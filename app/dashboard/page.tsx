@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import NewFilingForm from "@/components/NewFilingForm";
+import FilingList from "@/components/FilingList";
 import StatTile from "@/components/StatTile";
 
 export default async function DashboardPage() {
@@ -57,33 +58,7 @@ export default async function DashboardPage() {
 
         <div className="card p-6">
           <h2 className="ledger-heading text-xl font-semibold mb-4">Your filings</h2>
-          {filings.length === 0 ? (
-            <p className="text-sm text-ink2">
-              No filings started yet. Name one and pick a financial year to begin.
-            </p>
-          ) : (
-            <ul className="space-y-1">
-              {filings.map((s) => (
-                <li key={s.id}>
-                  <Link
-                    href={`/session/${s.id}`}
-                    className="flex items-center justify-between gap-4 py-3 hairline hover:bg-paper -mx-2 px-2 rounded-md transition-colors"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm text-ink truncate">{s.name}</p>
-                      <p className="text-xs text-ink2 font-mono">
-                        FY {s.financial_year} ·{" "}
-                        <span className="capitalize">{s.status.replace(/_/g, " ")}</span>
-                      </p>
-                    </div>
-                    <span className="text-xs font-mono uppercase tracking-wide text-ledger shrink-0">
-                      Open →
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
+          <FilingList filings={filings} />
         </div>
       </section>
     </main>

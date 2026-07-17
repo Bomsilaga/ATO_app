@@ -72,6 +72,24 @@ create table if not exists crypto_disposals (
   created_at timestamptz not null default now()
 );
 
+-- Saved trips for the travel quick-add: once a from/to pair's distance is
+-- entered, it's remembered so the next entry is two dropdown picks. Scoped
+-- to the user (not a session) — home/work don't change between FYs.
+create table if not exists travel_routes (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  from_place text not null,
+  to_place text not null,
+  km numeric not null check (km > 0),
+  created_at timestamptz not null default now(),
+  unique (user_id, from_place, to_place)
+);
+
+alter table travel_routes enable row level security;
+
+create policy "own travel routes" on travel_routes
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
 create table if not exists guidance_cache (
   id uuid primary key default gen_random_uuid(),
   session_id uuid not null references tax_sessions(id) on delete cascade,

@@ -10,6 +10,7 @@ import { isCatchUpFiling } from "@/lib/financial-year";
 import CategoryTriage from "@/components/CategoryTriage";
 import FileUpload from "@/components/FileUpload";
 import QuickAdd from "@/components/QuickAdd";
+import TravelAdd from "@/components/TravelAdd";
 import RecordList from "@/components/RecordList";
 import SessionSummary from "@/components/SessionSummary";
 import ReportPanel from "@/components/ReportPanel";
@@ -222,7 +223,20 @@ export default function SessionPage() {
 
                   {addedMsg && <p className="text-sm text-ledger whitespace-pre-line">✓ {addedMsg}</p>}
 
-                  <div className="pt-3 hairline">
+                  <div className="pt-4 hairline">
+                    <h3 className="text-xs font-mono uppercase tracking-wide text-ink2 mb-3">
+                      Travel (cents per km)
+                    </h3>
+                    <TravelAdd
+                      sessionId={session.id}
+                      onAdded={(msg) => {
+                        setAddedMsg(msg);
+                        loadRecords();
+                      }}
+                    />
+                  </div>
+
+                  <div className="pt-4 hairline">
                     <FileUpload sessionId={session.id} onUploaded={loadRecords} />
                   </div>
                 </section>
